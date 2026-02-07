@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-comfortaa);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html, body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-comfortaa);
+  text-decoration: #ededed
+}
+
+/* Hide scrollbars on mobile (scroll still works) */
+@media (max-width: 768px) {
+  html,
+  body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+.safe-area-blur {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.25);
+  z-index: 30;
+  pointer-events: none;
+}
+
+@layer components {
+  .glassmorphism {
+    @apply bg-white/10 backdrop-blur-md rounded-lg border border-white/20 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
+  }
+
+  .glassmorphism-dark {
+    @apply bg-black/40 backdrop-blur-2xl rounded-lg border border-white/10 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
+  }
+
+  .glassmorphism-pill {
+    @apply bg-black/20 rounded-full backdrop-blur-[0.2rem] shadow-2xl ring-2 ring-white/10 flex items-center justify-center px-4 py-2 gap-2 h-fit;
+  }
+
+  .button-hover-1 {
+    @apply hover:text-cyan-400 transition duration-200 hover:fill-cyan-400
+  }
+
+  .input-style-1 {
+    @apply
+      bg-black/20 rounded-full py-3 px-4 outline-none ring-1 ring-white/10 transition-all duration-200 ease-out backdrop-blur-xs w-full max-h-12 resize-none;
+  }
+
+  .input-style-1:focus {
+    @apply ring-2 ring-cyan-300/60;
+  }
+
+  .button-cyan {
+    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-cyan-400/30 hover:border-cyan-400/60 hover:shadow-lg hover:shadow-cyan-500/20;
+    background-image: linear-gradient(90deg, rgba(6, 182, 212, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%);
+  }
+
+  .button-red {
+    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-cyan-400/30 hover:border-cyan-400/60 hover:shadow-lg hover:shadow-cyan-500/20;
+    background-image: linear-gradient(90deg, rgba(0, 123, 139, 0.3) 0%, rgba(0, 53, 53, 0.3) 100%);
+  }
+
+  .button-red-real {
+    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-red-400/30 hover:border-red-400/60 hover:shadow-lg hover:shadow-red-500/20;
+    background-image: linear-gradient(90deg, rgba(255, 0, 0, 0.3) 0%, rgba(255, 0, 0, 0.3) 100%);
+  }
+
+  .button-green {
+    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-green-400/30 hover:border-green-400/60 hover:shadow-lg hover:shadow-green-500/20;
+    background-image: linear-gradient(90deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.3) 100%);
+  }
+
+  .button-gray {
+    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-gray-400/30 hover:border-gray-400/60 hover:shadow-lg hover:shadow-gray-500/20;
+    background-image: linear-gradient(90deg, rgba(107, 114, 128, 0.3) 0%, rgba(75, 85, 99, 0.3) 100%);
+  }
+
+  .card-style-1 {
+    @apply bg-black/20 rounded-3xl backdrop-blur-[0.2rem] ring-2 ring-white/10 p-6 shadow-lg h-fit sticky z-100;
+  }
+
+  .close-button {
+    @apply absolute top-3 right-3 p-2 bg-black/20 backdrop-blur-[0.2rem] hover:ring-cyan-300/60 ring-2 ring-white/10 rounded-full transition-colors duration-200 shadow-lg
+  }
+
+  /* Chat scrollbar customizada */
+  .chat-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 10px;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(6, 182, 212, 0.3);
+    border-radius: 10px;
+    border: 2px solid rgba(15, 23, 42, 0.3);
+  }
+
+  .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(6, 182, 212, 0.5);
+  }
+
+  /* Firefox */
+  .chat-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(6, 182, 212, 0.3) rgba(15, 23, 42, 0.3);
+  }
+}
+
+/* Word breaking for long messages */
+.message-text {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
