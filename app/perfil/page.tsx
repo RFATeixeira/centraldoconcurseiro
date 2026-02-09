@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { sendEmailVerification } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 import { maskCpf } from '../../lib/formatters'
 import Image from 'next/image'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
 type ProfileFormState = {
   name: string
@@ -62,7 +63,7 @@ const formatDate = (value?: Date | null) => {
 }
 
 export default function Perfil() {
-  const { user, loading, signOutUser } = useAuth()
+  const { user, loading, signOutUser, profile: authProfile } = useAuth()
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileFormState>(emptyProfile)
   const [createdAt, setCreatedAt] = useState<Date | null>(null)
@@ -343,6 +344,17 @@ export default function Perfil() {
                 {isSaving ? 'Salvando...' : 'Salvar'}
               </button>
 
+              {authProfile?.isAdmin && (
+                <Link
+                  href="/admin"
+                  className="button-cyan flex items-center gap-2"
+                  title="Painel de Administração"
+                >
+                  <ShieldCheckIcon className="h-5 w-5" />
+                  Admin
+                </Link>
+              )}
+
               <button
                 type="button"
                 onClick={handleSignOut}
@@ -356,12 +368,14 @@ export default function Perfil() {
 
         {/* Modal de Foto */}
         {isModalOpen && profile.photo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="relative">
-              {/* Botão Fechar */}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setIsModalOpen(false)}
+          >
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="close-button"
+                className="absolute top-3 right-3 p-2 bg-black/20 backdrop-blur-[0.2rem] hover:ring-cyan-300/60 ring-2 ring-white/10 rounded-full transition-colors duration-200 shadow-lg z-10"
                 aria-label="Fechar"
               >
                 <XMarkIcon className="h-4 w-4 text-white" />

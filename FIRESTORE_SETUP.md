@@ -18,6 +18,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
       allow read, write: if request.auth != null;
+      
+      match /concursos/{concursoId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     match /chats/{chatId} {
@@ -30,6 +34,16 @@ service cloud.firestore {
     
     match /concursos/{concursoId} {
       allow read, write: if request.auth != null;
+    }
+    
+    match /questoes/{questaoId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+      
+      match /comentarios/{comentarioId} {
+        allow read, create: if request.auth != null;
+        allow delete, update: if request.auth != null;
+      }
     }
     
     match /{document=**} {

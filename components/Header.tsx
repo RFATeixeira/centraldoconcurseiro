@@ -106,8 +106,11 @@ export default function Header() {
               </Link>
             </div>
           </div>
-          <Link href="/chat" className="pl-3 button-hover-1">
+          <Link href="/chat" className="pl-3 button-hover-1 pr-5">
             Chat
+          </Link>
+          <Link href="/simulados" className="pl-3 button-hover-1">
+            Simulados
           </Link>
         </div>
       </div>

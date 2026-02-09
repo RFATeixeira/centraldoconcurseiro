@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import Image from 'next/image'
 import {
   collection,
@@ -94,6 +94,33 @@ export default function Chat() {
   >([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messageMenuRef = useRef<HTMLDivElement>(null)
+
+  // Memoizar getOtherUserInfo para evitar recálculos desnecessários
+  const getOtherUserInfo = useMemo(() => {
+    return (chat: Chat): { name: string; photo: string } => {
+      if (chat.tipo !== 'private' || !user) {
+        return { name: chat.nome, photo: chat.photoUrl }
+      }
+
+      const otherUserId = chat.members.find((m) => m !== user.uid)
+      if (!otherUserId) {
+        return { name: chat.nome, photo: chat.photoUrl }
+      }
+
+      const otherUser = allUsers.find((u) => u.uid === otherUserId)
+      if (otherUser) {
+        return { name: otherUser.name, photo: otherUser.photo }
+      }
+
+      return { name: chat.nome, photo: chat.photoUrl }
+    }
+  }, [user, allUsers])
+
+  // Memoizar displayInfo do chat selecionado
+  const selectedChatDisplayInfo = useMemo(() => {
+    if (!selectedChat) return null
+    return getOtherUserInfo(selectedChat)
+  }, [selectedChat, getOtherUserInfo])
 
   // Carregar todos os usuários
   useEffect(() => {
@@ -224,6 +251,12 @@ export default function Chat() {
     if (!selectedChat) {
       return
     }
+
+    // Limpar mensagens e estados anteriores imediatamente
+    setMessages([])
+    setReplyingTo(null)
+    setSelectedMessageId(null)
+    setActivatingMessageId(null)
 
     const q = query(
       collection(db, 'chats', selectedChat.id, 'messages'),
@@ -370,24 +403,6 @@ export default function Chat() {
     }
   }
 
-  const getOtherUserInfo = (chat: Chat): { name: string; photo: string } => {
-    if (chat.tipo !== 'private' || !user) {
-      return { name: chat.nome, photo: chat.photoUrl }
-    }
-
-    const otherUserId = chat.members.find((m) => m !== user.uid)
-    if (!otherUserId) {
-      return { name: chat.nome, photo: chat.photoUrl }
-    }
-
-    const otherUser = allUsers.find((u) => u.uid === otherUserId)
-    if (otherUser) {
-      return { name: otherUser.name, photo: otherUser.photo }
-    }
-
-    return { name: chat.nome, photo: chat.photoUrl }
-  }
-
   const openUserOptions = (uid: string, name: string) => {
     setSelectedUser({ uid, name })
     setShowUsersModal(true)
@@ -422,6 +437,7 @@ export default function Chat() {
         setShowChatList(false)
         setShowUsersModal(false)
         setSelectedUser(null)
+        setMessageText('')
         return
       }
 
@@ -452,6 +468,7 @@ export default function Chat() {
       setShowChatList(false)
       setShowUsersModal(false)
       setSelectedUser(null)
+      setMessageText('')
     } catch (error) {
       console.error('Erro ao criar conversa privada:', error)
     } finally {
@@ -491,6 +508,8 @@ export default function Chat() {
                   onClick={() => {
                     setSelectedChat(chat)
                     setShowChatList(false)
+                    setMessageText('')
+                    setShowUsersModal(false)
                   }}
                   className={`w-full p-4 border-b border-slate-700/30 backdrop-blur-xs hover:bg-slate-700/50 active:bg-slate-700 transition-colors text-left ${
                     selectedChat?.id === chat.id ? 'bg-slate-700/50' : ''
@@ -548,39 +567,34 @@ export default function Chat() {
               className="flex items-center gap-3  w-full flex-row-reverse md:flex-row cursor-pointer hover:opacity-75 transition-opacity"
               onClick={() => setShowUsersModal(true)}
             >
-              {(() => {
-                const displayInfo = getOtherUserInfo(selectedChat)
-                return (
-                  <>
-                    <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0">
-                      {displayInfo.photo ? (
-                        <Image
-                          src={displayInfo.photo}
-                          alt={displayInfo.name}
-                          width={40}
-                          height={40}
-                          className="rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-sm font-bold text-cyan-300">
-                          {displayInfo.name[0]?.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <h1 className="font-bold text-white truncate">
-                        {displayInfo.name}
-                      </h1>
-                      <p className="text-xs text-slate-400">
-                        {selectedChat.members.length}{' '}
-                        {selectedChat.members.length === 1
-                          ? 'membro'
-                          : 'membros'}
-                      </p>
-                    </div>
-                  </>
-                )
-              })()}
+              {selectedChatDisplayInfo && (
+                <>
+                  <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0">
+                    {selectedChatDisplayInfo.photo ? (
+                      <Image
+                        src={selectedChatDisplayInfo.photo}
+                        alt={selectedChatDisplayInfo.name}
+                        width={40}
+                        height={40}
+                        className="rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-sm font-bold text-cyan-300">
+                        {selectedChatDisplayInfo.name[0]?.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <h1 className="font-bold text-white truncate">
+                      {selectedChatDisplayInfo.name}
+                    </h1>
+                    <p className="text-xs text-slate-400">
+                      {selectedChat.members.length}{' '}
+                      {selectedChat.members.length === 1 ? 'membro' : 'membros'}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

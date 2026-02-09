@@ -1,15 +1,24 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../context/AuthContext'
+import UploadQuestoes from '../../components/UploadQuestoes'
+import ModalAdicionarQuestao from '../../components/ModalAdicionarQuestao'
 import UploadClassificacoes from '../../components/UploadClassificacoes'
-import { ArrowLeftIcon } from '@heroicons/react/24/outline'
-import Link from 'next/link'
+import {
+  PencilSquareIcon,
+  DocumentChartBarIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline'
 
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+  const [isModalQuestionOpen, setIsModalQuestionOpen] = useState(false)
+  const [isModalUploadOpen, setIsModalUploadOpen] = useState(false)
+  const [isModalClassificacoesOpen, setIsModalClassificacoesOpen] =
+    useState(false)
 
   useEffect(() => {
     if (loading) return
@@ -42,36 +51,157 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="w-full min-h-full flex p-4 pb-24 md:pb-4">
-      <div className="w-full max-w-4xl mx-auto z-100">
+    <main className="w-full min-h-full flex flex-col p-4 pb-24 md:pb-4 gap-6 pt-4 md:pt-24">
+      <div className="w-full max-w-6xl mx-auto flex flex-col gap-6">
         {/* Header */}
-        <div className="mb-4 text-right md:text-left">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-cyan-200 hover:text-cyan-100 transition-colors mb-4 text-sm"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-            Voltar
-          </Link>
-          <h1 className="text-2xl font-bold text-white mb-2">Painel Admin</h1>
-          <p className="text-gray-400 text-sm">Gerencie dados de concursos</p>
+        <div className="text-left">
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Painel Administrativo
+          </h1>
+          <p className="text-cyan-200">
+            Gerencie questões de simulados e classificações de concursos
+          </p>
         </div>
 
-        {/* Conteúdo Admin */}
-        <div className="glassmorphism-pill rounded-4xl p-8 flex flex-col">
-          <div className="mb-8 text-right md:text-left">
-            <h2 className="text-2xl font-semibold text-white mb-4">
-              Upload de Classificações
-            </h2>
-            <p className="text-gray-300 mb-6">
-              Envie uma planilha com os dados de classificação do concurso. O
-              sistema interpretará automaticamente os dados.
-            </p>
+        {/* Cards Grid */}
+        <div className="grid grid-cols-2 gap-6">
+          {/* Card 1: Adicionar Questões */}
+          <div className="glassmorphism-pill rounded-3xl flex flex-col p-6 hover:ring-cyan-600 transition-all">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-3 bg-cyan-500/20 rounded-xl">
+                <PencilSquareIcon className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-white">
+                  Adicionar Questões
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Escolha como adicionar: manual ou em lote
+                </p>
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                onClick={() => setIsModalQuestionOpen(true)}
+                className="button-cyan"
+              >
+                ✏️ Questão Manual
+              </button>
+              <button
+                onClick={() => setIsModalUploadOpen(true)}
+                className="button-red"
+              >
+                📤 Upload em Lote
+              </button>
+            </div>
           </div>
 
-          <UploadClassificacoes />
+          {/* Card 2: Classificações */}
+          <div className="glassmorphism-pill rounded-3xl flex flex-col p-6 hover:ring-cyan-600 transition-all">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-3 bg-cyan-500/15 rounded-xl">
+                <DocumentChartBarIcon className="h-6 w-6 text-cyan-300" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-2xl font-bold text-white">
+                  Classificações
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Upload de resultados de concursos
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsModalClassificacoesOpen(true)}
+              className="button-cyan"
+            >
+              📊 Upload Classificações
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Modal Adicionar Questão */}
+      <ModalAdicionarQuestao
+        isOpen={isModalQuestionOpen}
+        onClose={() => setIsModalQuestionOpen(false)}
+        onSuccess={() => {
+          // Atualizar se necessário
+        }}
+      />
+
+      {/* Modal Upload Questões */}
+      {isModalUploadOpen && (
+        <div
+          className="fixed inset-0 z-250 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setIsModalUploadOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[90vh] bg-slate-800/60 border border-slate-700/50 rounded-3xl relative flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsModalUploadOpen(false)}
+              className="close-button"
+              aria-label="Fechar"
+            >
+              <XMarkIcon className="h-4 w-4 text-white" />
+            </button>
+
+            {/* Scrollable Content */}
+            <div className="overflow-auto flex-1 p-6 chat-scrollbar">
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-cyan-300">
+                  Upload de Questões em Lote
+                </h2>
+              </div>
+
+              {/* Content */}
+              <UploadQuestoes />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Upload Classificações */}
+      {isModalClassificacoesOpen && (
+        <div
+          className="fixed inset-0 z-250 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setIsModalClassificacoesOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[90vh] bg-slate-800/60 border border-slate-700/50 rounded-3xl relative flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsModalClassificacoesOpen(false)}
+              className="close-button"
+              aria-label="Fechar"
+            >
+              <XMarkIcon className="h-4 w-4 text-white" />
+            </button>
+
+            {/* Scrollable Content */}
+            <div className="overflow-auto flex-1 p-6 chat-scrollbar">
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-cyan-300">
+                  Upload de Classificações
+                </h2>
+              </div>
+
+              {/* Content */}
+              <UploadClassificacoes />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
