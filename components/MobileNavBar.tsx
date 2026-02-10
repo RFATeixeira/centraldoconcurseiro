@@ -8,6 +8,7 @@ import {
   ChatBubbleLeftIcon,
   UserIcon,
   ArrowLeftIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 
 export default function MobileNavBar() {
@@ -40,7 +41,7 @@ export default function MobileNavBar() {
 
       {/* NavBar Flutuante - Fundo */}
       <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-200">
-        <div className="bg-black/60 backdrop-blur-[0.2rem] border border-white/10 rounded-full px-4 py-3 flex items-center gap-12 shadow-2xl">
+        <div className="bg-black/60 backdrop-blur-[0.2rem] border border-white/10 rounded-full px-4 py-3 flex items-center gap-6 shadow-2xl">
           <Link
             href="/"
             className={`p-2 rounded-full transition-all ${
@@ -63,6 +64,18 @@ export default function MobileNavBar() {
             title="Concursos"
           >
             <AcademicCapIcon className="h-8 w-8" />
+          </Link>
+
+          <Link
+            href="/simulados"
+            className={`p-2 rounded-full transition-all ${
+              pathname === '/simulados'
+                ? 'bg-cyan-600 text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+            title="Simulados"
+          >
+            <ClipboardDocumentListIcon className="h-7 w-7" />
           </Link>
 
           <Link

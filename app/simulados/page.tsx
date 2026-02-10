@@ -340,7 +340,7 @@ export default function Simulados() {
   }
 
   return (
-    <main className="w-full min-h-full flex flex-col pt-4 md:pt-24 pb-24 md:pb-4">
+    <main className="w-full min-h-full flex flex-col pt-4 pb-24 md:pb-4">
       <div className="max-w-4xl w-full mx-auto flex flex-col gap-4 px-4">
         {/* Filtros fixos no topo */}
         <div className="glassmorphism-pill w-full p-4 rounded-3xl flex flex-col md:flex-row gap-3 flex-wrap sticky top-20 md:top-24 z-40">
@@ -411,7 +411,7 @@ export default function Simulados() {
             {questoesFiltradas.map((questao, index) => (
               <div
                 key={questao.id}
-                className="glassmorphism-pill p-6 rounded-3xl flex flex-col gap-4"
+                className="glassmorphism-pill p-6 rounded-3xl flex flex-col gap-4 mt-16 md:mt-0"
               >
                 {/* Cabeçalho da questão */}
                 <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-600/30">
