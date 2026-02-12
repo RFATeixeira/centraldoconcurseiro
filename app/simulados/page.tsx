@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   deleteDoc,
+  where,
 } from 'firebase/firestore'
 import Image from 'next/image'
 import { db } from '../../lib/firebase'
@@ -39,7 +40,7 @@ interface Questao {
   concurso: string
   disciplina: string
   ano: number
-  dificuldade: 'facil' | 'media' | 'dificil'
+  // dificuldade removida
   createdAt: Timestamp | null
   updatedAt: Timestamp | null
 }
@@ -91,7 +92,9 @@ export default function Simulados() {
   const [selectedBanca, setSelectedBanca] = useState<string>('todos')
   const [selectedConcurso, setSelectedConcurso] = useState<string>('todos')
   const [selectedDisciplina, setSelectedDisciplina] = useState<string>('todos')
-  const [selectedDificuldade, setSelectedDificuldade] =
+  // const [selectedDificuldade, setSelectedDificuldade] =
+  //   useState<string>('todos')
+  const [selectedStatusResposta, setSelectedStatusResposta] =
     useState<string>('todos')
 
   // Carregar todas as questões
@@ -128,6 +131,40 @@ export default function Simulados() {
 
         setQuestoes(questoesData)
         setQuestoesCarregadas(true)
+
+        // Carregar respostas do usuário
+        if (user) {
+          try {
+            const respostasRef = collection(
+              db,
+              'users',
+              user.uid,
+              'respostas_simulados',
+            )
+            const respostasSnap = await getDocs(respostasRef)
+
+            const respostasMap: Record<string, string> = {}
+            const resultadosMap: Record<
+              string,
+              { correto: boolean; respostaEscolhida: string }
+            > = {}
+
+            respostasSnap.forEach((doc) => {
+              const dados = doc.data()
+              respostasMap[dados.questaoId] = dados.respostaEscolhida
+              resultadosMap[dados.questaoId] = {
+                correto: dados.correto,
+                respostaEscolhida: dados.respostaEscolhida,
+              }
+            })
+
+            setRespostasEscolhidas(respostasMap)
+            setResultados(resultadosMap)
+            console.log('✅ Respostas carregadas do Firestore')
+          } catch (error) {
+            console.error('Erro ao carregar respostas do usuário:', error)
+          }
+        }
       },
       (error) => {
         console.error('❌ ERRO ao carregar questões:', error)
@@ -136,7 +173,7 @@ export default function Simulados() {
     )
 
     return () => unsubscribe()
-  }, [])
+  }, [user])
 
   // Obter opções únicas de filtros
   const opcoesFiltros = useMemo(() => {
@@ -165,17 +202,33 @@ export default function Simulados() {
         selectedConcurso === 'todos' || q.concurso === selectedConcurso
       const passaDisciplina =
         selectedDisciplina === 'todos' || q.disciplina === selectedDisciplina
-      const passaDificuldade =
-        selectedDificuldade === 'todos' || q.dificuldade === selectedDificuldade
+      // const passaDificuldade =
+      //   selectedDificuldade === 'todos' || q.dificuldade === selectedDificuldade
 
-      return passaBanca && passaConcurso && passaDisciplina && passaDificuldade
+      // Filtro de status de resposta
+      let passaStatusResposta = true
+      if (selectedStatusResposta === 'respondidas') {
+        passaStatusResposta = !!resultados[q.id]
+      } else if (selectedStatusResposta === 'nao-respondidas') {
+        passaStatusResposta = !resultados[q.id]
+      }
+
+      return (
+        passaBanca &&
+        passaConcurso &&
+        passaDisciplina &&
+        /* passaDificuldade && */
+        passaStatusResposta
+      )
     })
   }, [
     questoes,
     selectedBanca,
     selectedConcurso,
     selectedDisciplina,
-    selectedDificuldade,
+    // selectedDificuldade,
+    selectedStatusResposta,
+    resultados,
   ])
 
   const handleAdicionarComentario = async (questaoId: string) => {
@@ -295,7 +348,7 @@ export default function Simulados() {
     })
   }
 
-  const responder = (questao: QuestaoComComentarios) => {
+  const responder = async (questao: QuestaoComComentarios) => {
     const respostaEscolhida = respostasEscolhidas[questao.id]
 
     if (!respostaEscolhida) {
@@ -313,6 +366,43 @@ export default function Simulados() {
 
     // Revelar automaticamente a resposta
     setRespostasReveladas((prev) => ({ ...prev, [questao.id]: true }))
+
+    // Salvar resposta no Firebase
+    if (user) {
+      try {
+        const respostasRef = collection(
+          db,
+          'users',
+          user.uid,
+          'respostas_simulados',
+        )
+
+        // Verificar se já existe uma resposta para esta questão
+        const q = query(respostasRef, where('questaoId', '==', questao.id))
+        const existingResponse = await getDocs(q)
+
+        if (existingResponse.empty) {
+          // Salvar nova resposta
+          const docRef = await addDoc(respostasRef, {
+            questaoId: questao.id,
+            enunciado: questao.enunciado,
+            respostaEscolhida,
+            respostaCorreta: questao.resposta,
+            correto,
+            concurso: questao.concurso,
+            disciplina: questao.disciplina,
+            banca: questao.banca,
+            // dificuldade: questao.dificuldade,
+            timestamp: serverTimestamp(),
+          })
+          console.log('✅ Resposta salva com sucesso:', docRef.id)
+        } else {
+          console.log('ℹ️ Resposta já existe para esta questão')
+        }
+      } catch (error) {
+        console.error('❌ Erro ao salvar resposta:', error)
+      }
+    }
   }
 
   const formatDate = (timestamp: Timestamp | null): string => {
@@ -326,28 +416,28 @@ export default function Simulados() {
     })
   }
 
-  const getDificuldadeColor = (dificuldade: string): string => {
-    switch (dificuldade) {
-      case 'facil':
-        return 'bg-green-500/20 text-green-200 border-green-400/30'
-      case 'media':
-        return 'bg-yellow-500/20 text-yellow-200 border-yellow-400/30'
-      case 'dificil':
-        return 'bg-red-500/20 text-red-200 border-red-400/30'
-      default:
-        return 'bg-slate-500/20 text-slate-200 border-slate-400/30'
-    }
-  }
+  // const getDificuldadeColor = (dificuldade: string): string => {
+  //   switch (dificuldade) {
+  //     case 'facil':
+  //       return 'bg-green-500/20 text-green-200 border-green-400/30'
+  //     case 'media':
+  //       return 'bg-yellow-500/20 text-yellow-200 border-yellow-400/30'
+  //     case 'dificil':
+  //       return 'bg-red-500/20 text-red-200 border-red-400/30'
+  //     default:
+  //       return 'bg-slate-500/20 text-slate-200 border-slate-400/30'
+  //   }
+  // }
 
   return (
     <main className="w-full min-h-full flex flex-col pt-4 pb-24 md:pb-4">
-      <div className="max-w-4xl w-full mx-auto flex flex-col gap-4 px-4">
+      <div className="max-w-6xl w-full mx-auto flex flex-col gap-4 px-4">
         {/* Filtros fixos no topo */}
         <div className="glassmorphism-pill w-full p-4 rounded-3xl flex flex-col md:flex-row gap-3 flex-wrap sticky top-20 md:top-24 z-40">
           <select
             value={selectedBanca}
             onChange={(e) => setSelectedBanca(e.target.value)}
-            className="input-style-1 flex-1 min-w-40"
+            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
           >
             <option value="todos">Todas as Bancas</option>
             {opcoesFiltros.bancas.map((banca) => (
@@ -360,7 +450,7 @@ export default function Simulados() {
           <select
             value={selectedConcurso}
             onChange={(e) => setSelectedConcurso(e.target.value)}
-            className="input-style-1 flex-1 min-w-40"
+            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
           >
             <option value="todos">Todos os Concursos</option>
             {opcoesFiltros.concursos.map((concurso) => (
@@ -373,7 +463,7 @@ export default function Simulados() {
           <select
             value={selectedDisciplina}
             onChange={(e) => setSelectedDisciplina(e.target.value)}
-            className="input-style-1 flex-1 min-w-40"
+            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50 "
           >
             <option value="todos">Todas as Disciplinas</option>
             {opcoesFiltros.disciplinas.map((disciplina) => (
@@ -383,15 +473,16 @@ export default function Simulados() {
             ))}
           </select>
 
+          {/* Filtro de dificuldade removido */}
+
           <select
-            value={selectedDificuldade}
-            onChange={(e) => setSelectedDificuldade(e.target.value)}
-            className="input-style-1 flex-1 min-w-40"
+            value={selectedStatusResposta}
+            onChange={(e) => setSelectedStatusResposta(e.target.value)}
+            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
           >
-            <option value="todos">Todas as Dificuldades</option>
-            <option value="facil">Fácil</option>
-            <option value="media">Média</option>
-            <option value="dificil">Difícil</option>
+            <option value="todos">Todas as Questões</option>
+            <option value="respondidas">✓ Respondidas</option>
+            <option value="nao-respondidas">○ Não Respondidas</option>
           </select>
         </div>
 
@@ -414,20 +505,18 @@ export default function Simulados() {
                 className="glassmorphism-pill p-6 rounded-3xl flex flex-col gap-4 mt-16 md:mt-0"
               >
                 {/* Cabeçalho da questão */}
-                <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-600/30">
+                <div className="flex items-start w-full gap-3 pb-3 border-b border-slate-600/30">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-lg font-bold text-cyan-300">
                         Questão {index + 1}
                       </span>
-                      <span
-                        className={`px-3 py-1 rounded-full border text-xs font-semibold ${getDificuldadeColor(
-                          questao.dificuldade,
-                        )}`}
-                      >
-                        {questao.dificuldade.charAt(0).toUpperCase() +
-                          questao.dificuldade.slice(1)}
-                      </span>
+                      {resultados[questao.id] && (
+                        <span className="px-2 py-1 rounded-full bg-green-500/20 border border-green-400/30 text-xs font-semibold text-green-200 flex items-center gap-1">
+                          ✓ Respondida
+                        </span>
+                      )}
+                      {/* Dificuldade da questão removida */}
                     </div>
                     <p className="text-sm text-slate-300 mt-1">
                       {questao.banca} • {questao.concurso} • {questao.ano} •{' '}
@@ -586,7 +675,7 @@ export default function Simulados() {
                 </div>
 
                 {/* Seção de Comentários */}
-                <div className="border-t border-slate-600/30 pt-4">
+                <div className="border-t border-slate-600/30 pt-4 w-full">
                   <button
                     onClick={() => toggleComentarios(questao.id)}
                     className="flex items-center gap-2 text-cyan-300 hover:text-cyan-200 transition-colors"
@@ -603,7 +692,7 @@ export default function Simulados() {
                     <div className="mt-4 space-y-4">
                       {/* Formulário de novo comentário */}
                       {user && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
                           <textarea
                             value={novoComentarioPorQuestao[questao.id] || ''}
                             onChange={(e) =>
@@ -613,7 +702,7 @@ export default function Simulados() {
                               }))
                             }
                             placeholder="Adicione um comentário..."
-                            className="input-style-1 flex-1 min-h-20 rounded-2xl"
+                            className="input-style-1 flex-1 min-h-20 rounded-3xl"
                             disabled={enviandoComentario[questao.id]}
                           />
                           <button
@@ -624,7 +713,7 @@ export default function Simulados() {
                               !novoComentarioPorQuestao[questao.id]?.trim() ||
                               enviandoComentario[questao.id]
                             }
-                            className="button-cyan h-fit shrink-0"
+                            className="button-cyan w-fit shrink-0 h-max"
                           >
                             {enviandoComentario[questao.id] ? '...' : 'Enviar'}
                           </button>

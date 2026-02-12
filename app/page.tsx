@@ -6,6 +6,7 @@ import { db } from '../lib/firebase'
 import { useAuth } from './context/AuthContext'
 import UserConcursoCard from '../components/UserConcursoCard'
 import TopRankingsCard from '../components/TopRankingsCard'
+import ProgressoEstudosCard from '../components/ProgressoEstudosCard'
 
 interface Ranking {
   concurso: string
@@ -73,11 +74,12 @@ export default function Home() {
   }, [user])
 
   return (
-    <main className="w-full min-h-full flex flex-col md:flex-row p-4 gap-6 pb-24 md:pb-4 overflow-x-hidden">
-      {/* Cards laterais */}
-      <div className="w-full md:shrink-0 flex flex-col md:flex-row gap-6 min-w-0">
+    <main className="w-full min-h-full flex flex-col p-4 gap-6 pb-24 md:pb-4 overflow-x-hidden">
+      {/* Cards superiores - Alinhados à esquerda */}
+      <div className="flex flex-wrap gap-4 min-w-0">
         <UserConcursoCard stats={stats} />
         <TopRankingsCard rankings={rankings} />
+        <ProgressoEstudosCard />
       </div>
 
       {/* Conteúdo principal */}

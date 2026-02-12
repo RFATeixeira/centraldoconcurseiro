@@ -141,7 +141,7 @@ export default function ModalAdicionarQuestao({
       }}
     >
       <div
-        className="w-full max-w-2xl max-h-[90vh] bg-slate-800/90 border border-slate-700/50 rounded-3xl relative flex flex-col"
+        className="w-full max-w-2xl max-h-[90vh] bg-slate-800/60 border border-slate-700/50 rounded-3xl relative flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}

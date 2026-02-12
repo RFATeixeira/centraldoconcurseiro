@@ -1,5 +1,5 @@
 'use client'
-
+// Função para enviar questões para o backend (exemplo: salvar no Firestore)
 import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -13,12 +13,14 @@ interface Questao {
   opcaoD: string
   opcaoE?: string
   resposta: string
-  explicacao: string
   banca: string
   concurso: string
   disciplina: string
   ano: number
-  dificuldade: 'facil' | 'media' | 'dificil'
+}
+
+interface Gabarito {
+  [numero: string]: string
 }
 
 export default function UploadQuestoes() {
@@ -28,21 +30,76 @@ export default function UploadQuestoes() {
   const [previewQuestoes, setPreviewQuestoes] = useState<Questao[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [fileName, setFileName] = useState<string>('')
+  const [gabarito, setGabarito] = useState<Gabarito | null>(null)
 
-  const parseCSV = (csv: string): Questao[] => {
+  // Função para enviar questões para o backend (exemplo: salvar no Firestore)
+  async function handleEnviarQuestoes() {
+    setIsLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const questoesRef = collection(db, 'questoes')
+      let count = 0
+      for (const questao of previewQuestoes) {
+        const opcoes: Record<string, string> = {
+          a: questao.opcaoA,
+          b: questao.opcaoB,
+          c: questao.opcaoC,
+          d: questao.opcaoD,
+        }
+        if (questao.opcaoE) {
+          opcoes.e = questao.opcaoE
+        }
+        await addDoc(questoesRef, {
+          enunciado: questao.enunciado,
+          opcoes,
+          resposta: questao.resposta,
+          banca: questao.banca,
+          concurso: questao.concurso,
+          disciplina: questao.disciplina,
+          ano: questao.ano,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+        count++
+      }
+      setSuccess(`Questões enviadas com sucesso! (${count})`)
+      setShowPreview(false)
+      setPreviewQuestoes([])
+      setFileName('')
+      setGabarito(null)
+    } catch (err) {
+      setError('Erro ao enviar questões: ' + (err as Error).message)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // CSV parser
+  function parseCSV(csv: string): {
+    questoes: Questao[]
+    gabarito: Gabarito | null
+  } {
     const lines = csv.trim().split('\n')
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase())
-
     const questoes: Questao[] = []
-
-    for (let i = 1; i < lines.length; i++) {
+    let gabaritoObj: Gabarito | null = null
+    let endIdx = lines.length
+    // Detect gabarito row
+    const lastLine = lines[lines.length - 1].trim().toLowerCase()
+    if (lastLine.startsWith('gabarito')) {
+      endIdx = lines.length - 1
+      const parts = lines[lines.length - 1].split(',')
+      parts.shift()
+      gabaritoObj = {}
+      parts.forEach((resp, idx) => {
+        gabaritoObj![`${idx + 1}`] = resp.trim().toUpperCase()
+      })
+    }
+    for (let i = 1; i < endIdx; i++) {
       if (!lines[i].trim()) continue
-
-      // Parse mais robusto para CSV com valores entre aspas
       const values: string[] = []
       let current = ''
       let insideQuotes = false
-
       for (let j = 0; j < lines[i].length; j++) {
         const char = lines[i][j]
         if (char === '"') {
@@ -54,205 +111,58 @@ export default function UploadQuestoes() {
           current += char
         }
       }
-      values.push(current.trim().replace(/^"|"$/g, ''))
-
-      const obj: Record<string, string> = {}
-      headers.forEach((header, idx) => {
-        obj[header] = values[idx] || ''
+      if (current.length > 0) values.push(current.trim().replace(/^"|"$/g, ''))
+      if (values.length < 8) continue
+      questoes.push({
+        enunciado: values[0],
+        opcaoA: values[1],
+        opcaoB: values[2],
+        opcaoC: values[3],
+        opcaoD: values[4],
+        opcaoE: values[5] || undefined,
+        resposta: values[6],
+        banca: values[7],
+        concurso: values[8] || '',
+        disciplina: values[9] || '',
+        ano: Number(values[10]) || 0,
       })
-
-      try {
-        const questao: Questao = {
-          enunciado: obj.enunciado || obj['questão'] || obj.pergunta || '',
-          opcaoA: obj['opção a'] || obj.opcao_a || obj.a || '',
-          opcaoB: obj['opção b'] || obj.opcao_b || obj.b || '',
-          opcaoC: obj['opção c'] || obj.opcao_c || obj.c || '',
-          opcaoD: obj['opção d'] || obj.opcao_d || obj.d || '',
-          opcaoE: obj['opção e'] || obj.opcao_e || obj.e || undefined,
-          resposta: (obj.resposta || obj.gabarito || '').toUpperCase(),
-          explicacao: obj['explicação'] || obj.explicacao || '',
-          banca: obj.banca || '',
-          concurso: obj.concurso || '',
-          disciplina: obj.disciplina || obj['matéria'] || '',
-          ano: parseInt(obj.ano || '2024') || 2024,
-          dificuldade: (obj.dificuldade || 'media').toLowerCase() as
-            | 'facil'
-            | 'media'
-            | 'dificil',
-        }
-
-        if (
-          questao.enunciado &&
-          questao.opcaoA &&
-          questao.opcaoB &&
-          questao.opcaoC &&
-          questao.opcaoD &&
-          questao.resposta &&
-          questao.explicacao &&
-          questao.banca &&
-          questao.concurso &&
-          questao.disciplina
-        ) {
-          questoes.push(questao)
-        }
-      } catch (e) {
-        console.error(`Erro ao processar linha ${i}:`, e)
-      }
     }
-
-    return questoes
+    return { questoes, gabarito: gabaritoObj }
   }
 
-  const parseJSON = (json: string): Questao[] => {
-    const data = JSON.parse(json)
-    const array = Array.isArray(data) ? data : [data]
-
-    return array
-      .map(
-        (item: Record<string, unknown>): Questao => ({
-          enunciado: (item.enunciado ||
-            item.questão ||
-            item.pergunta ||
-            '') as string,
-          opcaoA: (item.opcaoA || item.opcao_a || item.a || '') as string,
-          opcaoB: (item.opcaoB || item.opcao_b || item.b || '') as string,
-          opcaoC: (item.opcaoC || item.opcao_c || item.c || '') as string,
-          opcaoD: (item.opcaoD || item.opcao_d || item.d || '') as string,
-          opcaoE: (item.opcaoE || item.opcao_e || item.e) as string | undefined,
-          resposta: (
-            (item.resposta || item.gabarito || '') as string
-          ).toUpperCase(),
-          explicacao: (item.explicacao || item.explicação || '') as string,
-          banca: (item.banca || '') as string,
-          concurso: (item.concurso || '') as string,
-          disciplina: (item.disciplina || item.matéria || '') as string,
-          ano: parseInt(item.ano as string) || 2024,
-          dificuldade: (
-            (item.dificuldade || 'media') as string
-          ).toLowerCase() as 'facil' | 'media' | 'dificil',
-        }),
-      )
-      .filter(
-        (q): q is Questao =>
-          !!q.enunciado &&
-          !!q.opcaoA &&
-          !!q.opcaoB &&
-          !!q.opcaoC &&
-          !!q.opcaoD &&
-          !!q.resposta &&
-          !!q.explicacao &&
-          !!q.banca &&
-          !!q.concurso &&
-          !!q.disciplina,
-      )
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File upload handler
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setError(null)
+    setSuccess(null)
+    setShowPreview(false)
+    setPreviewQuestoes([])
+    setGabarito(null)
     const file = e.target.files?.[0]
     if (!file) return
-
     setFileName(file.name)
-    setError(null)
-    setSuccess(null)
-    setPreviewQuestoes([])
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string
-        let questoes: Questao[] = []
-
-        if (file.name.endsWith('.csv')) {
-          questoes = parseCSV(content)
-        } else if (file.name.endsWith('.json')) {
-          questoes = parseJSON(content)
-        } else {
-          setError('Formato não suportado. Use CSV ou JSON.')
-          return
-        }
-
-        if (questoes.length === 0) {
-          setError(
-            'Nenhuma questão válida encontrada. Verifique o formato do arquivo.',
-          )
-          return
-        }
-
-        setPreviewQuestoes(questoes)
-        setShowPreview(true)
-      } catch (err) {
-        console.error('Erro ao processar arquivo:', err)
-        setError(`Erro ao processar arquivo: ${(err as Error).message}`)
-      }
-    }
-
-    reader.readAsText(file)
-  }
-
-  const handleUpload = async () => {
-    if (previewQuestoes.length === 0) return
-
     setIsLoading(true)
-    setError(null)
-    setSuccess(null)
-
     try {
-      const questoesRef = collection(db, 'questoes')
-      let count = 0
-
-      for (const questao of previewQuestoes) {
-        const opcoes: Record<string, string> = {
-          a: questao.opcaoA,
-          b: questao.opcaoB,
-          c: questao.opcaoC,
-          d: questao.opcaoD,
-        }
-
-        if (questao.opcaoE) {
-          opcoes.e = questao.opcaoE
-        }
-
-        await addDoc(questoesRef, {
-          enunciado: questao.enunciado,
-          opcoes,
-          resposta: questao.resposta,
-          explicacao: questao.explicacao,
-          banca: questao.banca,
-          concurso: questao.concurso,
-          disciplina: questao.disciplina,
-          ano: questao.ano,
-          dificuldade: questao.dificuldade,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-
-        count++
-
-        // Firestore tem limite de 500 operações por batch
-        if (count % 100 === 0) {
-          console.log(`✓ ${count} questões adicionadas...`)
-        }
+      const text = await file.text()
+      let questoes: Questao[] = []
+      let gabaritoObj: Gabarito | null = null
+      if (file.name.endsWith('.csv')) {
+        const parsed = parseCSV(text)
+        questoes = parsed.questoes
+        gabaritoObj = parsed.gabarito
+      } else if (file.name.endsWith('.json')) {
+        const parsed = JSON.parse(text)
+        questoes = Array.isArray(parsed) ? parsed : []
       }
-
-      setSuccess(
-        `✓ ${previewQuestoes.length} questões adicionadas com sucesso!`,
-      )
-      setPreviewQuestoes([])
-      setShowPreview(false)
-      setFileName('')
-
-      // Reset input
-      const input = document.querySelector(
-        'input[type="file"]',
-      ) as HTMLInputElement
-      if (input) input.value = ''
-
-      setTimeout(() => {
-        setSuccess(null)
-      }, 3000)
+      if (questoes.length === 0) {
+        setError('Nenhuma questão encontrada no arquivo.')
+        setIsLoading(false)
+        return
+      }
+      setPreviewQuestoes(questoes)
+      setShowPreview(true)
+      setGabarito(gabaritoObj)
     } catch (err) {
-      console.error('Erro ao enviar questões:', err)
-      setError(`Erro ao enviar questões: ${(err as Error).message}`)
+      setError('Erro ao ler arquivo: ' + (err as Error).message)
     } finally {
       setIsLoading(false)
     }
@@ -281,6 +191,87 @@ export default function UploadQuestoes() {
           />
         </label>
       </div>
+      <div className="flex justify-center mt-4">
+        <button
+          onClick={handleEnviarQuestoes}
+          className="button-cyan"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Enviando... (Não feche a página!)' : 'Enviar questões'}
+        </button>
+      </div>
+      {/* Instruções de formato CSV e JSON */}
+      <div className="bg-slate-800/60 rounded-xl p-4 mb-2">
+        <h4 className="text-white font-semibold mb-2">
+          Instruções para importar questões:
+        </h4>
+        <ul className="text-slate-300 text-sm mb-2 list-disc pl-5">
+          <li>
+            <span className="font-bold text-cyan-300">CSV:</span> Cada linha
+            representa uma questão, com os campos separados por vírgula.
+          </li>
+          <li>
+            Campos: enunciado, opçãoA, opçãoB, opçãoC, opçãoD, opçãoE
+            (opcional), resposta, banca, concurso, disciplina, ano.
+          </li>
+          <li>
+            Ao final, adicione uma linha de gabarito começando com{' '}
+            <span className="text-cyan-300 font-mono">gabarito</span> e as
+            respostas das questões.
+          </li>
+          <li className="mt-2">
+            <span className="font-bold text-cyan-300">JSON:</span> O arquivo
+            deve conter um array de objetos, cada um representando uma questão
+            com os mesmos campos do CSV.
+          </li>
+        </ul>
+        <div className="bg-slate-900/80 rounded p-2 text-xs font-mono text-cyan-200 overflow-x-auto mb-2">
+          <span className="text-cyan-400">Exemplo CSV:</span>
+          <br />
+          enunciado,opcaoA,opcaoB,opcaoC,opcaoD,opcaoE,resposta,banca,concurso,disciplina,ano
+          <br />
+          Qual a capital do Brasil?,Brasília,Rio de Janeiro,São Paulo,Belo
+          Horizonte,,A,FGV,Concurso X,Geografia,2022
+          <br />
+          Quem descobriu o Brasil?,Pedro Álvares Cabral,Vasco da Gama,Cristóvão
+          Colombo,Dom Pedro II,,A,CESPE,Concurso Y,História,2021
+          <br />
+          gabarito,A,A
+        </div>
+        <div className="bg-slate-900/80 rounded p-2 text-xs font-mono text-cyan-200 overflow-x-auto">
+          <span className="text-cyan-400">Exemplo JSON:</span>
+          <pre>
+            {`[
+          {
+            "enunciado": "Qual a capital do Brasil?",
+            "opcaoA": "Brasília",
+            "opcaoB": "Rio de Janeiro",
+            "opcaoC": "São Paulo",
+            "opcaoD": "Belo Horizonte",
+            "opcaoE": "",
+            "resposta": "A",
+            "banca": "FGV",
+            "concurso": "Concurso X",
+            "disciplina": "Geografia",
+            "ano": 2022
+          },
+          {
+            "enunciado": "Quem descobriu o Brasil?",
+            "opcaoA": "Pedro Álvares Cabral",
+            "opcaoB": "Vasco da Gama",
+            "opcaoC": "Cristóvão Colombo",
+            "opcaoD": "Dom Pedro II",
+            "opcaoE": "",
+            "resposta": "A",
+            "banca": "CESPE",
+            "concurso": "Concurso Y",
+            "disciplina": "História",
+            "ano": 2021
+          }
+        ]`}
+          </pre>
+        </div>
+      </div>
 
       {/* Mensagens */}
       {error && (
@@ -288,7 +279,6 @@ export default function UploadQuestoes() {
           <p className="text-sm text-red-200">{error}</p>
         </div>
       )}
-
       {success && (
         <div className="rounded-lg backdrop-blur-sm bg-green-500/20 border border-green-400/30 p-4">
           <p className="text-sm text-green-200">{success}</p>
@@ -307,6 +297,7 @@ export default function UploadQuestoes() {
                 setShowPreview(false)
                 setPreviewQuestoes([])
                 setFileName('')
+                setGabarito(null)
                 const input = document.querySelector(
                   'input[type="file"]',
                 ) as HTMLInputElement
@@ -317,127 +308,63 @@ export default function UploadQuestoes() {
               <XMarkIcon className="h-5 w-5" />
             </button>
           </div>
-
-          {/* Lista de Preview */}
-          <div className="bg-slate-700/20 rounded-lg border border-slate-600/30 max-h-64 overflow-y-auto chat-scrollbar">
-            {previewQuestoes.map((q, idx) => (
-              <div
-                key={idx}
-                className="p-3 border-b border-slate-600/20 last:border-b-0"
-              >
-                <p className="text-sm font-semibold text-cyan-300 mb-1">
-                  #{idx + 1} - {q.banca} ({q.ano})
-                </p>
-                <p className="text-xs text-slate-300 line-clamp-2">
-                  {q.enunciado}
-                </p>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  <span className="text-xs bg-slate-600/30 px-2 py-1 rounded">
-                    {q.disciplina}
-                  </span>
-                  <span className="text-xs bg-slate-600/30 px-2 py-1 rounded">
-                    {q.concurso}
-                  </span>
-                  <span
-                    className={`text-xs px-2 py-1 rounded ${
-                      q.dificuldade === 'facil'
-                        ? 'bg-green-500/20 text-green-200'
-                        : q.dificuldade === 'media'
-                          ? 'bg-yellow-500/20 text-yellow-200'
-                          : 'bg-red-500/20 text-red-200'
-                    }`}
-                  >
-                    {q.dificuldade}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm text-left text-slate-300">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Enunciado</th>
+                  <th>Alternativas</th>
+                  <th>Resposta</th>
+                  <th>Banca</th>
+                  <th>Concurso</th>
+                  <th>Disciplina</th>
+                  <th>Ano</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewQuestoes.map((q, idx) => (
+                  <tr key={idx} className="border-b border-slate-700/30">
+                    <td>{idx + 1}</td>
+                    <td>{q.enunciado.slice(0, 60)}...</td>
+                    <td>
+                      {[q.opcaoA, q.opcaoB, q.opcaoC, q.opcaoD, q.opcaoE]
+                        .filter(Boolean)
+                        .map((alt, i) => (
+                          <span key={i} className="mr-2">
+                            {String.fromCharCode(65 + i)}: {alt}
+                          </span>
+                        ))}
+                    </td>
+                    <td>{q.resposta}</td>
+                    <td>{q.banca}</td>
+                    <td>{q.concurso}</td>
+                    <td>{q.disciplina}</td>
+                    <td>{q.ano}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          {/* Botão Upload */}
-          <button
-            onClick={handleUpload}
-            disabled={isLoading || previewQuestoes.length === 0}
-            className="button-cyan w-full"
-          >
-            {isLoading
-              ? `Adicionando ${previewQuestoes.length} questões...`
-              : `Confirmar e Adicionar ${previewQuestoes.length} Questões`}
-          </button>
+          {gabarito && (
+            <div className="mt-4 bg-slate-700/30 rounded-xl p-4">
+              <h4 className="text-white font-semibold mb-2">
+                Gabarito do arquivo:
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(gabarito).map(([num, resp]) => (
+                  <span
+                    key={num}
+                    className="bg-slate-800 px-2 py-1 rounded text-cyan-300"
+                  >
+                    {num}: {resp}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      {/* Template Download */}
-      <div className="mt-8 pt-6 border-t border-slate-600/30">
-        <p className="text-sm font-semibold text-white mb-3">
-          📋 Formato do arquivo:
-        </p>
-
-        <div className="space-y-3 text-xs">
-          {/* CSV Template */}
-          <div className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
-            <p className="font-semibold text-cyan-300 mb-2">CSV Exemplo:</p>
-            <pre className="text-slate-300 overflow-x-auto text-xs">
-              {`enunciado,opcaoA,opcaoB,opcaoC,opcaoD,opcaoE,resposta,explicacao,banca,concurso,disciplina,ano,dificuldade
-"Qual é a capital do Brasil?","Salvador","Brasília","Rio de Janeiro","São Paulo","Manaus","B","Brasília é a capital desde 1960...","CESPE","INSS 2022","Geografia",2022,facil`}
-            </pre>
-          </div>
-
-          {/* JSON Template */}
-          <div className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
-            <p className="font-semibold text-cyan-300 mb-2">JSON Exemplo:</p>
-            <pre className="text-slate-300 overflow-x-auto text-xs">
-              {`[
-  {
-    "enunciado": "Qual é a capital do Brasil?",
-    "opcaoA": "Salvador",
-    "opcaoB": "Brasília",
-    "opcaoC": "Rio de Janeiro",
-    "opcaoD": "São Paulo",
-    "opcaoE": "Manaus",
-    "resposta": "B",
-    "explicacao": "Brasília é a capital desde 1960...",
-    "banca": "CESPE",
-    "concurso": "INSS 2022",
-    "disciplina": "Geografia",
-    "ano": 2022,
-    "dificuldade": "facil"
-  }
-]`}
-            </pre>
-          </div>
-
-          {/* Campos obrigatórios */}
-          <div className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
-            <p className="font-semibold text-cyan-300 mb-2">
-              ✓ Campos obrigatórios:
-            </p>
-            <ul className="text-slate-300 space-y-1">
-              <li>• enunciado / questão / pergunta</li>
-              <li>• opcaoA / opcao_a / a (e B, C, D também)</li>
-              <li>• resposta / gabarito (A, B, C, D ou E)</li>
-              <li>• explicacao / explicação</li>
-              <li>• banca</li>
-              <li>• concurso</li>
-              <li>• disciplina / matéria</li>
-              <li>• dificuldade (facil, media, dificil)</li>
-              <li>• ano (padrão: 2024)</li>
-            </ul>
-          </div>
-
-          {/* Nomes de coluna aceitos */}
-          <div className="bg-slate-700/20 rounded-lg p-3 border border-slate-600/30">
-            <p className="font-semibold text-cyan-300 mb-2">
-              💡 Nomes flexíveis:
-            </p>
-            <p className="text-slate-300">
-              O sistema aceita várias variações de nomes de colunas. Exemplo:
-              &quot;opção a&quot;, &quot;opcao_a&quot;, &quot;opcaoA&quot; são
-              todos aceitos!
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

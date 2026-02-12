@@ -2,21 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '../context/AuthContext'
-import UploadQuestoes from '../../components/UploadQuestoes'
+
 import ModalAdicionarQuestao from '../../components/ModalAdicionarQuestao'
+import UploadQuestoes from '../../components/UploadQuestoes'
 import UploadClassificacoes from '../../components/UploadClassificacoes'
-import {
-  PencilSquareIcon,
-  DocumentChartBarIcon,
-  XMarkIcon,
-} from '@heroicons/react/24/outline'
+import { PencilSquareIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
   const [isModalQuestionOpen, setIsModalQuestionOpen] = useState(false)
   const [isModalUploadOpen, setIsModalUploadOpen] = useState(false)
+
   const [isModalClassificacoesOpen, setIsModalClassificacoesOpen] =
     useState(false)
 
@@ -25,11 +24,6 @@ export default function AdminPage() {
 
     // Verifica se usuário está autenticado e é admin
     if (!user) {
-      router.replace('/login')
-      return
-    }
-
-    if (!profile?.isAdmin) {
       router.replace('/')
     }
   }, [user, profile, loading, router])
@@ -54,15 +48,11 @@ export default function AdminPage() {
     <main className="w-full min-h-full flex flex-col p-4 pb-24 md:pb-4 gap-6 pt-4 md:pt-24">
       <div className="w-full max-w-6xl mx-auto flex flex-col gap-6">
         {/* Header */}
-        <div className="text-left">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Painel Administrativo
-          </h1>
-          <p className="text-cyan-200">
+        <div>
+          <p className="text-lg text-white font-semibold">
             Gerencie questões de simulados e classificações de concursos
           </p>
         </div>
-
         {/* Cards Grid */}
         <div className="grid grid-cols-2 gap-6">
           {/* Card 1: Adicionar Questões */}
@@ -80,47 +70,49 @@ export default function AdminPage() {
                 </p>
               </div>
             </div>
-
             {/* Botões de Ação */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
                 onClick={() => setIsModalQuestionOpen(true)}
-                className="button-cyan"
+                className="button-cyan justify-center items-center"
               >
                 ✏️ Questão Manual
               </button>
               <button
                 onClick={() => setIsModalUploadOpen(true)}
-                className="button-red"
+                className="button-red justify-center items-center"
               >
-                📤 Upload em Lote
+                📄 CSV ou JSON
               </button>
             </div>
           </div>
-
-          {/* Card 2: Classificações */}
+          {/* Card 2: Upload Classificações */}
           <div className="glassmorphism-pill rounded-3xl flex flex-col p-6 hover:ring-cyan-600 transition-all">
             <div className="flex items-start gap-4 mb-4">
-              <div className="p-3 bg-cyan-500/15 rounded-xl">
-                <DocumentChartBarIcon className="h-6 w-6 text-cyan-300" />
+              <div className="p-3 bg-cyan-500/20 rounded-xl">
+                <span className="text-2xl">🏆</span>
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-bold text-white">
-                  Classificações
+                  Upload de Classificações
                 </h3>
                 <p className="text-sm text-slate-400 mt-1">
-                  Upload de resultados de concursos
+                  Importe classificações de concursos em lote
                 </p>
               </div>
             </div>
-
             <button
               onClick={() => setIsModalClassificacoesOpen(true)}
-              className="button-cyan"
+              className="button-cyan justify-center items-center"
             >
-              📊 Upload Classificações
+              🏆 Importar Classificação
             </button>
           </div>
+        </div>
+        <div className="mt-8 z-150">
+          <Link href="/admin/lotes-questoes" className="button-cyan">
+            Gerenciar Lotes de Questões
+          </Link>
         </div>
       </div>
 
@@ -151,7 +143,6 @@ export default function AdminPage() {
             >
               <XMarkIcon className="h-4 w-4 text-white" />
             </button>
-
             {/* Scrollable Content */}
             <div className="overflow-auto flex-1 p-6 chat-scrollbar">
               {/* Header */}
@@ -160,7 +151,6 @@ export default function AdminPage() {
                   Upload de Questões em Lote
                 </h2>
               </div>
-
               {/* Content */}
               <UploadQuestoes />
             </div>
