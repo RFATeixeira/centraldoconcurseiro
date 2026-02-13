@@ -10,6 +10,7 @@ import MobileNavBar from '../components/MobileNavBar'
 import { AuthProvider } from './context/AuthContext'
 import { HeaderProvider } from './context/HeaderContext'
 import { UIProvider } from './context/UIContext'
+import Footer from '../components/Footer'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -71,6 +72,7 @@ export default function RootAppTestLayout({
                 <div className="flex-1">{children}</div>
               </AuthGuard>
               <MobileNavBar />
+              <Footer />
             </HeaderProvider>
           </AuthProvider>
         </UIProvider>

@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
   collection,
   query,
-  onSnapshot,
   addDoc,
   serverTimestamp,
   getDocs,
@@ -14,6 +13,10 @@ import {
   getDoc,
   deleteDoc,
   where,
+  limit,
+  startAfter,
+  DocumentData,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import Image from 'next/image'
 import { db } from '../../lib/firebase'
@@ -62,6 +65,7 @@ interface QuestaoComComentarios extends Questao {
 export default function Simulados() {
   const { user } = useAuth()
   const [questoes, setQuestoes] = useState<QuestaoComComentarios[]>([])
+
   const [questoesCarregadas, setQuestoesCarregadas] = useState(false)
   const [respostasReveladas, setRespostasReveladas] = useState<
     Record<string, boolean>
@@ -97,83 +101,134 @@ export default function Simulados() {
   const [selectedStatusResposta, setSelectedStatusResposta] =
     useState<string>('todos')
 
-  // Carregar todas as questões
+  // Paginação Firestore: buscar 5 por vez
+
+  const [ultimoDoc, setUltimoDoc] =
+    useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [temMais, setTemMais] = useState(true)
   useEffect(() => {
-    const q = query(collection(db, 'questoes'), orderBy('createdAt', 'desc'))
+    setQuestoes([])
+    setUltimoDoc(null)
+    setTemMais(true)
+    setQuestoesCarregadas(false)
+    carregarMaisQuestoes(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    user,
+    selectedBanca,
+    selectedConcurso,
+    selectedDisciplina,
+    selectedStatusResposta,
+  ])
 
-    const unsubscribe = onSnapshot(
-      q,
-      async (snapshot) => {
-        const questoesData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as QuestaoComComentarios[]
+  const [carregandoMais, setCarregandoMais] = useState(false)
 
-        // Carregar contagem de comentários para cada questão
-        for (const questao of questoesData) {
-          try {
-            const comentariosRef = collection(
-              db,
-              'questoes',
-              questao.id,
-              'comentarios',
-            )
-            const comentariosSnap = await getDocs(comentariosRef)
-            questao.totalComentarios = comentariosSnap.size
-          } catch (error) {
-            console.error(
-              `Erro ao carregar comentários da questão ${questao.id}:`,
-              error,
-            )
-            questao.totalComentarios = 0
-          }
+  async function carregarMaisQuestoes(reset = false) {
+    try {
+      setCarregandoMais(true)
+
+      const whereConstraints = []
+
+      if (selectedBanca !== 'todos')
+        whereConstraints.push(where('banca', '==', selectedBanca))
+      if (selectedConcurso !== 'todos')
+        whereConstraints.push(where('concurso', '==', selectedConcurso))
+      if (selectedDisciplina !== 'todos')
+        whereConstraints.push(where('disciplina', '==', selectedDisciplina))
+
+      let q
+      if (!reset && ultimoDoc) {
+        q = query(
+          collection(db, 'questoes'),
+          ...whereConstraints,
+          orderBy('createdAt', 'desc'),
+          startAfter(ultimoDoc),
+          limit(5),
+        )
+      } else {
+        q = query(
+          collection(db, 'questoes'),
+          ...whereConstraints,
+          orderBy('createdAt', 'desc'),
+          limit(5),
+        )
+      }
+
+      const snapshot = await getDocs(q)
+
+      const novasQuestoes = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as QuestaoComComentarios[]
+
+      for (const questao of novasQuestoes) {
+        try {
+          const comentariosRef = collection(
+            db,
+            'questoes',
+            questao.id,
+            'comentarios',
+          )
+          const comentariosSnap = await getDocs(comentariosRef)
+          questao.totalComentarios = comentariosSnap.size
+        } catch (error) {
+          console.error(
+            `Erro ao carregar comentários da questão ${questao.id}:`,
+            error,
+          )
+          questao.totalComentarios = 0
         }
+      }
 
-        setQuestoes(questoesData)
-        setQuestoesCarregadas(true)
+      setQuestoes((prev) => {
+        const ids = new Set(prev.map((q) => q.id))
+        const novasUnicas = novasQuestoes.filter((q) => !ids.has(q.id))
+        return reset ? novasUnicas : [...prev, ...novasUnicas]
+      })
 
-        // Carregar respostas do usuário
-        if (user) {
-          try {
-            const respostasRef = collection(
-              db,
-              'users',
-              user.uid,
-              'respostas_simulados',
-            )
-            const respostasSnap = await getDocs(respostasRef)
+      setUltimoDoc(snapshot.docs[snapshot.docs.length - 1])
+      setTemMais(snapshot.docs.length === 5)
+      setQuestoesCarregadas(true)
 
-            const respostasMap: Record<string, string> = {}
-            const resultadosMap: Record<
-              string,
-              { correto: boolean; respostaEscolhida: string }
-            > = {}
+      if (reset && user) {
+        try {
+          const respostasRef = collection(
+            db,
+            'users',
+            user.uid,
+            'respostas_simulados',
+          )
 
-            respostasSnap.forEach((doc) => {
-              const dados = doc.data()
-              respostasMap[dados.questaoId] = dados.respostaEscolhida
-              resultadosMap[dados.questaoId] = {
-                correto: dados.correto,
-                respostaEscolhida: dados.respostaEscolhida,
-              }
-            })
+          const respostasSnap = await getDocs(respostasRef)
 
-            setRespostasEscolhidas(respostasMap)
-            setResultados(resultadosMap)
-            console.log('✅ Respostas carregadas do Firestore')
-          } catch (error) {
-            console.error('Erro ao carregar respostas do usuário:', error)
-          }
+          const respostasMap: Record<string, string> = {}
+          const resultadosMap: Record<
+            string,
+            { correto: boolean; respostaEscolhida: string }
+          > = {}
+
+          respostasSnap.forEach((doc) => {
+            const dados = doc.data()
+            respostasMap[dados.questaoId] = dados.respostaEscolhida
+            resultadosMap[dados.questaoId] = {
+              correto: dados.correto,
+              respostaEscolhida: dados.respostaEscolhida,
+            }
+          })
+
+          setRespostasEscolhidas(respostasMap)
+          setResultados(resultadosMap)
+          console.log('✅ Respostas carregadas do Firestore')
+        } catch (error) {
+          console.error('Erro ao carregar respostas do usuário:', error)
         }
-      },
-      (error) => {
-        console.error('❌ ERRO ao carregar questões:', error)
-        setQuestoesCarregadas(true)
-      },
-    )
-
-    return () => unsubscribe()
-  }, [user])
+      }
+    } catch (error) {
+      console.error('Erro ao carregar questões:', error)
+    } finally {
+      setCarregandoMais(false)
+    }
+  }
 
   // Obter opções únicas de filtros
   const opcoesFiltros = useMemo(() => {
@@ -194,42 +249,15 @@ export default function Simulados() {
     }
   }, [questoes])
 
-  // Questões filtradas
-  const questoesFiltradas = useMemo(() => {
+  // Filtrar por status de resposta só na renderização
+  const questoesPaginadas = useMemo(() => {
+    if (selectedStatusResposta === 'todos') return questoes
     return questoes.filter((q) => {
-      const passaBanca = selectedBanca === 'todos' || q.banca === selectedBanca
-      const passaConcurso =
-        selectedConcurso === 'todos' || q.concurso === selectedConcurso
-      const passaDisciplina =
-        selectedDisciplina === 'todos' || q.disciplina === selectedDisciplina
-      // const passaDificuldade =
-      //   selectedDificuldade === 'todos' || q.dificuldade === selectedDificuldade
-
-      // Filtro de status de resposta
-      let passaStatusResposta = true
-      if (selectedStatusResposta === 'respondidas') {
-        passaStatusResposta = !!resultados[q.id]
-      } else if (selectedStatusResposta === 'nao-respondidas') {
-        passaStatusResposta = !resultados[q.id]
-      }
-
-      return (
-        passaBanca &&
-        passaConcurso &&
-        passaDisciplina &&
-        /* passaDificuldade && */
-        passaStatusResposta
-      )
+      if (selectedStatusResposta === 'respondidas') return !!resultados[q.id]
+      if (selectedStatusResposta === 'nao-respondidas') return !resultados[q.id]
+      return true
     })
-  }, [
-    questoes,
-    selectedBanca,
-    selectedConcurso,
-    selectedDisciplina,
-    // selectedDificuldade,
-    selectedStatusResposta,
-    resultados,
-  ])
+  }, [questoes, selectedStatusResposta, resultados])
 
   const handleAdicionarComentario = async (questaoId: string) => {
     const textoComentario = novoComentarioPorQuestao[questaoId]
@@ -416,22 +444,9 @@ export default function Simulados() {
     })
   }
 
-  // const getDificuldadeColor = (dificuldade: string): string => {
-  //   switch (dificuldade) {
-  //     case 'facil':
-  //       return 'bg-green-500/20 text-green-200 border-green-400/30'
-  //     case 'media':
-  //       return 'bg-yellow-500/20 text-yellow-200 border-yellow-400/30'
-  //     case 'dificil':
-  //       return 'bg-red-500/20 text-red-200 border-red-400/30'
-  //     default:
-  //       return 'bg-slate-500/20 text-slate-200 border-slate-400/30'
-  //   }
-  // }
-
   return (
     <main className="w-full min-h-full flex flex-col pt-4 pb-24 md:pb-4">
-      <div className="max-w-6xl w-full mx-auto flex flex-col gap-4 px-4">
+      <div className="max-w-6xl w-full mx-auto flex flex-col gap-4 px-4 ">
         {/* Filtros fixos no topo */}
         <div className="glassmorphism-pill w-full p-4 rounded-3xl flex flex-col md:flex-row gap-3 flex-wrap sticky top-20 md:top-24 z-40">
           <select
@@ -491,7 +506,7 @@ export default function Simulados() {
           <div className="text-center py-8">
             <p className="text-slate-400">Carregando questões...</p>
           </div>
-        ) : questoesFiltradas.length === 0 ? (
+        ) : questoesPaginadas.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-slate-400">
               Nenhuma questão encontrada com os filtros selecionados
@@ -499,290 +514,313 @@ export default function Simulados() {
           </div>
         ) : (
           <div className="flex flex-col gap-6">
-            {questoesFiltradas.map((questao, index) => (
-              <div
-                key={questao.id}
-                className="glassmorphism-pill p-6 rounded-3xl flex flex-col gap-4 mt-16 md:mt-0"
-              >
-                {/* Cabeçalho da questão */}
-                <div className="flex items-start w-full gap-3 pb-3 border-b border-slate-600/30">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-lg font-bold text-cyan-300">
-                        Questão {index + 1}
-                      </span>
-                      {resultados[questao.id] && (
-                        <span className="px-2 py-1 rounded-full bg-green-500/20 border border-green-400/30 text-xs font-semibold text-green-200 flex items-center gap-1">
-                          ✓ Respondida
+            {questoesPaginadas.map((questao, index) => (
+              <React.Fragment key={questao.id}>
+                <div
+                  key={questao.id}
+                  className="glassmorphism-pill ring-0 md:ring-2 flex flex-col gap-4 mt-16 md:mt-0 py-4 p-0 md:p-4 rounded-3xl transition-all shadow-lg shadow-black/30 w-full"
+                >
+                  {/* Cabeçalho da questão */}
+                  <div className="flex items-start w-full gap-3 pb-3 border-b border-slate-600/30">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-lg font-bold text-cyan-300">
+                          Questão {index + 1}
                         </span>
-                      )}
-                      {/* Dificuldade da questão removida */}
+                        {resultados[questao.id] && (
+                          <span className="px-2 py-1 rounded-full bg-green-500/20 border border-green-400/30 text-xs font-semibold text-green-200 flex items-center gap-1">
+                            ✓ Respondida
+                          </span>
+                        )}
+                        {/* Dificuldade da questão removida */}
+                      </div>
+                      <p className="text-sm text-slate-300 mt-1">
+                        {questao.banca} • {questao.concurso} • {questao.ano} •{' '}
+                        {questao.disciplina}
+                      </p>
                     </div>
-                    <p className="text-sm text-slate-300 mt-1">
-                      {questao.banca} • {questao.concurso} • {questao.ano} •{' '}
-                      {questao.disciplina}
+                  </div>
+
+                  {/* Enunciado */}
+                  <div className="space-y-4">
+                    <p className="text-base text-white leading-relaxed">
+                      {questao.enunciado}
                     </p>
-                  </div>
-                </div>
 
-                {/* Enunciado */}
-                <div className="space-y-4">
-                  <p className="text-base text-white leading-relaxed">
-                    {questao.enunciado}
-                  </p>
-
-                  {/* Opções */}
-                  <div className="space-y-3">
-                    {Object.entries(questao.opcoes)
-                      .sort(([letraA], [letraB]) =>
-                        letraA.localeCompare(letraB),
-                      )
-                      .map(([letra, texto]) => {
-                        const isCorreta =
-                          letra.toUpperCase() === questao.resposta.toUpperCase()
-                        const estaEscolhida =
-                          respostasEscolhidas[questao.id]?.toUpperCase() ===
-                          letra.toUpperCase()
-                        const estaRiscada = (
-                          alternativasRiscadas[questao.id] || []
-                        ).some((l) => l.toUpperCase() === letra.toUpperCase())
-                        const temResultado = resultados[questao.id]
-
-                        return (
-                          <div
-                            key={letra}
-                            className={`w-full p-4 rounded-2xl border transition-all flex items-start gap-3 ${
-                              temResultado
-                                ? isCorreta
-                                  ? 'bg-green-500/20 border-green-400/50'
-                                  : estaEscolhida
-                                    ? 'bg-red-500/20 border-red-400/50'
-                                    : 'bg-slate-700/30 border-slate-600/30'
-                                : estaEscolhida
-                                  ? 'bg-cyan-500/20 border-cyan-400/50'
-                                  : estaRiscada
-                                    ? 'bg-yellow-500/10 border-yellow-600/30'
-                                    : 'bg-slate-700/30 border-slate-600/30'
-                            } ${estaRiscada ? 'opacity-60' : ''}`}
-                          >
-                            {/* Radio Button */}
-                            <button
-                              onClick={() =>
-                                selecionarAlternativa(questao.id, letra)
-                              }
-                              className={`mt-1 shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                estaEscolhida
-                                  ? 'bg-cyan-400 border-cyan-300'
-                                  : 'border-slate-400 hover:border-cyan-400'
-                              }`}
-                              disabled={estaRiscada}
-                            >
-                              {estaEscolhida && (
-                                <div className="w-2 h-2 bg-slate-900 rounded-full" />
-                              )}
-                            </button>
-
-                            {/* Texto da Alternativa */}
-                            <button
-                              onClick={() =>
-                                selecionarAlternativa(questao.id, letra)
-                              }
-                              disabled={estaRiscada}
-                              className="flex-1 text-left"
-                            >
-                              <span
-                                className={`font-bold text-cyan-300 ${
-                                  estaRiscada ? 'line-through opacity-50' : ''
-                                }`}
-                              >
-                                {letra.toUpperCase()})
-                              </span>
-                              <span
-                                className={`text-slate-100 ml-2 ${
-                                  estaRiscada ? 'line-through opacity-50' : ''
-                                }`}
-                              >
-                                {texto}
-                              </span>
-                            </button>
-
-                            {/* Botão de Riscar */}
-                            <button
-                              onClick={() =>
-                                toggleAlternativaRiscada(questao.id, letra)
-                              }
-                              className={`shrink-0 p-2 rounded-lg transition-all ${
-                                estaRiscada
-                                  ? 'bg-yellow-500/30 text-yellow-300 hover:bg-yellow-500/40'
-                                  : 'text-slate-400 hover:bg-slate-700/30 hover:text-yellow-400'
-                              }`}
-                              title={
-                                estaRiscada
-                                  ? 'Desriscar alternativa'
-                                  : 'Riscar alternativa'
-                              }
-                            >
-                              <XMarkIcon className="h-5 w-5" />
-                            </button>
-                          </div>
+                    {/* Opções */}
+                    <div className="space-y-3">
+                      {Object.entries(questao.opcoes)
+                        .sort(([letraA], [letraB]) =>
+                          letraA.localeCompare(letraB),
                         )
-                      })}
-                  </div>
+                        .map(([letra, texto]) => {
+                          const isCorreta =
+                            letra.toUpperCase() ===
+                            questao.resposta.toUpperCase()
+                          const estaEscolhida =
+                            respostasEscolhidas[questao.id]?.toUpperCase() ===
+                            letra.toUpperCase()
+                          const estaRiscada = (
+                            alternativasRiscadas[questao.id] || []
+                          ).some((l) => l.toUpperCase() === letra.toUpperCase())
+                          const temResultado = resultados[questao.id]
 
-                  {/* Resultado */}
-                  {resultados[questao.id] && (
-                    <div
-                      className={`p-4 rounded-2xl border ${
-                        resultados[questao.id].correto
-                          ? 'bg-green-500/20 border-green-400/30'
-                          : 'bg-red-500/20 border-red-400/30'
-                      }`}
-                    >
-                      <p
-                        className={`font-semibold text-sm ${
+                          return (
+                            <div
+                              key={letra}
+                              className={`w-full p-4 rounded-2xl border transition-all flex items-start gap-3 ${
+                                temResultado
+                                  ? isCorreta
+                                    ? 'bg-green-500/20 border-green-400/50'
+                                    : estaEscolhida
+                                      ? 'bg-red-500/20 border-red-400/50'
+                                      : 'bg-slate-700/30 border-slate-600/30'
+                                  : estaEscolhida
+                                    ? 'bg-cyan-500/20 border-cyan-400/50'
+                                    : estaRiscada
+                                      ? 'bg-yellow-500/10 border-yellow-600/30'
+                                      : 'bg-slate-700/30 border-slate-600/30'
+                              } ${estaRiscada ? 'opacity-60' : ''}`}
+                            >
+                              {/* Radio Button */}
+                              <button
+                                onClick={() =>
+                                  selecionarAlternativa(questao.id, letra)
+                                }
+                                className={`mt-1 shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                                  estaEscolhida
+                                    ? 'bg-cyan-400 border-cyan-300'
+                                    : 'border-slate-400 hover:border-cyan-400'
+                                }`}
+                                disabled={estaRiscada}
+                              >
+                                {estaEscolhida && (
+                                  <div className="w-2 h-2 bg-slate-900 rounded-full" />
+                                )}
+                              </button>
+
+                              {/* Texto da Alternativa */}
+                              <button
+                                onClick={() =>
+                                  selecionarAlternativa(questao.id, letra)
+                                }
+                                disabled={estaRiscada}
+                                className="flex-1 text-left"
+                              >
+                                <span
+                                  className={`font-bold text-cyan-300 ${
+                                    estaRiscada ? 'line-through opacity-50' : ''
+                                  }`}
+                                >
+                                  {letra.toUpperCase()})
+                                </span>
+                                <span
+                                  className={`text-slate-100 ml-2 ${
+                                    estaRiscada ? 'line-through opacity-50' : ''
+                                  }`}
+                                >
+                                  {texto}
+                                </span>
+                              </button>
+
+                              {/* Botão de Riscar */}
+                              <button
+                                onClick={() =>
+                                  toggleAlternativaRiscada(questao.id, letra)
+                                }
+                                className={`shrink-0 p-2 rounded-lg transition-all ${
+                                  estaRiscada
+                                    ? 'bg-yellow-500/30 text-yellow-300 hover:bg-yellow-500/40'
+                                    : 'text-slate-400 hover:bg-slate-700/30 hover:text-yellow-400'
+                                }`}
+                                title={
+                                  estaRiscada
+                                    ? 'Desriscar alternativa'
+                                    : 'Riscar alternativa'
+                                }
+                              >
+                                <XMarkIcon className="h-5 w-5" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                    </div>
+
+                    {/* Resultado */}
+                    {resultados[questao.id] && (
+                      <div
+                        className={`p-4 rounded-2xl border ${
                           resultados[questao.id].correto
-                            ? 'text-green-300'
-                            : 'text-red-300'
+                            ? 'bg-green-500/20 border-green-400/30'
+                            : 'bg-red-500/20 border-red-400/30'
                         }`}
                       >
-                        {resultados[questao.id].correto
-                          ? '✅ Resposta Correta!'
-                          : `❌ Resposta Incorreta! A resposta correta é ${questao.resposta.toUpperCase()}`}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Botões de Ação */}
-                  <button
-                    onClick={() => responder(questao)}
-                    className="button-cyan w-full"
-                    disabled={!respostasEscolhidas[questao.id]}
-                  >
-                    Responder
-                  </button>
-
-                  {/* Explicação */}
-                  {respostasReveladas[questao.id] && (
-                    <div className="bg-cyan-500/10 border border-cyan-400/30 rounded-2xl p-4">
-                      <p className="text-sm font-semibold text-cyan-300 mb-2">
-                        ✅ Resposta Correta: {questao.resposta.toUpperCase()}
-                      </p>
-                      <p className="text-sm text-slate-200 leading-relaxed">
-                        {questao.explicacao}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Seção de Comentários */}
-                <div className="border-t border-slate-600/30 pt-4 w-full">
-                  <button
-                    onClick={() => toggleComentarios(questao.id)}
-                    className="flex items-center gap-2 text-cyan-300 hover:text-cyan-200 transition-colors"
-                  >
-                    <ChatBubbleLeftIcon className="h-5 w-5" />
-                    <span className="text-sm font-semibold">
-                      {comentariosAbertos[questao.id]
-                        ? 'Ocultar Comentários'
-                        : `Ver Comentários (${questao.totalComentarios || 0})`}
-                    </span>
-                  </button>
-
-                  {comentariosAbertos[questao.id] && (
-                    <div className="mt-4 space-y-4">
-                      {/* Formulário de novo comentário */}
-                      {user && (
-                        <div className="flex gap-2 items-center">
-                          <textarea
-                            value={novoComentarioPorQuestao[questao.id] || ''}
-                            onChange={(e) =>
-                              setNovoComentarioPorQuestao((prev) => ({
-                                ...prev,
-                                [questao.id]: e.target.value,
-                              }))
-                            }
-                            placeholder="Adicione um comentário..."
-                            className="input-style-1 flex-1 min-h-20 rounded-3xl"
-                            disabled={enviandoComentario[questao.id]}
-                          />
-                          <button
-                            onClick={() =>
-                              handleAdicionarComentario(questao.id)
-                            }
-                            disabled={
-                              !novoComentarioPorQuestao[questao.id]?.trim() ||
-                              enviandoComentario[questao.id]
-                            }
-                            className="button-cyan w-fit shrink-0 h-max"
-                          >
-                            {enviandoComentario[questao.id] ? '...' : 'Enviar'}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Lista de comentários */}
-                      <div className="space-y-3">
-                        {!comentariosPorQuestao[questao.id] ? (
-                          <p className="text-sm text-slate-400 text-center py-4">
-                            Carregando comentários...
-                          </p>
-                        ) : comentariosPorQuestao[questao.id].length === 0 ? (
-                          <p className="text-sm text-slate-400 text-center py-4">
-                            Nenhum comentário ainda. Seja o primeiro!
-                          </p>
-                        ) : (
-                          comentariosPorQuestao[questao.id].map((coment) => (
-                            <div
-                              key={coment.id}
-                              className="bg-slate-700/30 rounded-2xl p-4 space-y-2"
-                            >
-                              <div className="flex items-start gap-3">
-                                {coment.photoUrl && (
-                                  <div className="relative h-8 w-8 shrink-0">
-                                    <Image
-                                      src={coment.photoUrl}
-                                      alt={coment.nome}
-                                      fill
-                                      className="rounded-full object-cover"
-                                      unoptimized
-                                    />
-                                  </div>
-                                )}
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-cyan-300">
-                                    {coment.nome}
-                                  </p>
-                                  <p className="text-xs text-slate-400">
-                                    {formatDate(coment.createdAt)}
-                                  </p>
-                                </div>
-                                {user?.uid === coment.uid && (
-                                  <button
-                                    onClick={() =>
-                                      handleDeletarComentario(
-                                        questao.id,
-                                        coment.id,
-                                      )
-                                    }
-                                    className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
-                                    title="Deletar comentário"
-                                  >
-                                    <TrashIcon className="h-4 w-4" />
-                                  </button>
-                                )}
-                              </div>
-                              <p className="text-sm text-slate-100">
-                                {coment.texto}
-                              </p>
-                            </div>
-                          ))
-                        )}
+                        <p
+                          className={`font-semibold text-sm ${
+                            resultados[questao.id].correto
+                              ? 'text-green-300'
+                              : 'text-red-300'
+                          }`}
+                        >
+                          {resultados[questao.id].correto
+                            ? '✅ Resposta Correta!'
+                            : `❌ Resposta Incorreta! A resposta correta é ${questao.resposta.toUpperCase()}`}
+                        </p>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Botões de Ação */}
+                    <button
+                      onClick={() => responder(questao)}
+                      className="button-cyan w-full"
+                      disabled={!respostasEscolhidas[questao.id]}
+                    >
+                      Responder
+                    </button>
+
+                    {/* Explicação */}
+                    {respostasReveladas[questao.id] && (
+                      <div className="bg-cyan-500/10 border border-cyan-400/30 rounded-2xl p-4">
+                        <p className="text-sm font-semibold text-cyan-300 mb-2">
+                          ✅ Resposta Correta: {questao.resposta.toUpperCase()}
+                        </p>
+                        <p className="text-sm text-slate-200 leading-relaxed">
+                          {questao.explicacao}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Seção de Comentários */}
+                  <div className="border-t border-slate-600/30 pt-4 w-full">
+                    <button
+                      onClick={() => toggleComentarios(questao.id)}
+                      className="flex items-center gap-2 text-cyan-300 hover:text-cyan-200 transition-colors"
+                    >
+                      <ChatBubbleLeftIcon className="h-5 w-5" />
+                      <span className="text-sm font-semibold">
+                        {comentariosAbertos[questao.id]
+                          ? 'Ocultar Comentários'
+                          : `Ver Comentários (${questao.totalComentarios || 0})`}
+                      </span>
+                    </button>
+
+                    {comentariosAbertos[questao.id] && (
+                      <div className="mt-4 space-y-4">
+                        {/* Formulário de novo comentário */}
+                        {user && (
+                          <div className="flex gap-2 items-center">
+                            <textarea
+                              value={novoComentarioPorQuestao[questao.id] || ''}
+                              onChange={(e) =>
+                                setNovoComentarioPorQuestao((prev) => ({
+                                  ...prev,
+                                  [questao.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Adicione um comentário..."
+                              className="input-style-1 flex-1 min-h-20 rounded-3xl"
+                              disabled={enviandoComentario[questao.id]}
+                            />
+                            <button
+                              onClick={() =>
+                                handleAdicionarComentario(questao.id)
+                              }
+                              disabled={
+                                !novoComentarioPorQuestao[questao.id]?.trim() ||
+                                enviandoComentario[questao.id]
+                              }
+                              className="button-cyan w-fit shrink-0 h-max"
+                            >
+                              {enviandoComentario[questao.id]
+                                ? '...'
+                                : 'Enviar'}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Lista de comentários */}
+                        <div className="space-y-3">
+                          {!comentariosPorQuestao[questao.id] ? (
+                            <p className="text-sm text-slate-400 text-center py-4">
+                              Carregando comentários...
+                            </p>
+                          ) : comentariosPorQuestao[questao.id].length === 0 ? (
+                            <p className="text-sm text-slate-400 text-center py-4">
+                              Nenhum comentário ainda. Seja o primeiro!
+                            </p>
+                          ) : (
+                            comentariosPorQuestao[questao.id].map((coment) => (
+                              <div
+                                key={coment.id}
+                                className="bg-slate-700/30 rounded-2xl p-4 space-y-2"
+                              >
+                                <div className="flex items-start gap-3">
+                                  {coment.photoUrl && (
+                                    <div className="relative h-8 w-8 shrink-0">
+                                      <Image
+                                        src={coment.photoUrl}
+                                        alt={coment.nome}
+                                        fill
+                                        className="rounded-full object-cover"
+                                        unoptimized
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-cyan-300">
+                                      {coment.nome}
+                                    </p>
+                                    <p className="text-xs text-slate-400">
+                                      {formatDate(coment.createdAt)}
+                                    </p>
+                                  </div>
+                                  {user?.uid === coment.uid && (
+                                    <button
+                                      onClick={() =>
+                                        handleDeletarComentario(
+                                          questao.id,
+                                          coment.id,
+                                        )
+                                      }
+                                      className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
+                                      title="Deletar comentário"
+                                    >
+                                      <TrashIcon className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-sm text-slate-100">
+                                  {coment.texto}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+                {/* Linha separadora para mobile */}
+                <div className="block md:hidden w-full h-2 bg-linear-to-r from-cyan-900/10 to-transparent my-2" />
+              </React.Fragment>
             ))}
+            {/* Botão Carregar mais */}
+            <div className="flex justify-center z-150">
+              <button
+                className={`button-cyan w-fit m-6 transition-all ${
+                  carregandoMais ? 'opacity-60 cursor-not-allowed' : ''
+                }`}
+                onClick={() => carregarMaisQuestoes(false)}
+                disabled={!temMais || carregandoMais}
+              >
+                {carregandoMais
+                  ? 'Carregando...'
+                  : temMais
+                    ? 'Carregar mais'
+                    : 'Sem mais questões'}
+              </button>
+            </div>
           </div>
         )}
       </div>

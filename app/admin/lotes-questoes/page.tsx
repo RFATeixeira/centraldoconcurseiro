@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { TrashIcon, ArrowLeftIcon } from '@heroicons/react/24/solid'
 import {
   collection,
   getDocs,
@@ -118,7 +119,7 @@ export default function LotesQuestoesPage() {
   )
 
   return (
-    <div className="max-w-5xl mx-auto p-4 relative z-300 bg-slate-900/90 rounded-xl">
+    <div className="max-w-5xl mx-auto p-4 relative z-300 b">
       <h1 className="text-2xl font-bold text-white mb-6">
         Gerenciar Questões em Lote
       </h1>
@@ -135,14 +136,13 @@ export default function LotesQuestoesPage() {
             {grupos.map((grupo) => (
               <li
                 key={grupo}
-                className="flex items-center gap-4 bg-slate-800/60 rounded-lg p-4"
+                className="glassmorphism-pill rounded-3xl flex items-center gap-4 p-4 hover:ring-cyan-600 transition-all hover:shadow-lg hover:shadow-cyan-700 cursor-pointer"
+                onClick={() => setGrupoSelecionado(grupo)}
+                title="Editar questões do grupo"
               >
-                <button
-                  className="text-cyan-400 underline text-lg font-semibold"
-                  onClick={() => setGrupoSelecionado(grupo)}
-                >
+                <span className="text-cyan-400 underline text-lg font-semibold">
                   {grupo}
-                </button>
+                </span>
                 <span className="text-slate-400 text-sm">
                   (
                   {
@@ -153,10 +153,15 @@ export default function LotesQuestoesPage() {
                   questões)
                 </span>
                 <button
-                  className="button-red-real ml-auto"
-                  onClick={() => handleDeleteGrupo(grupo)}
+                  className="button-red-real w-fit ml-auto flex items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteGrupo(grupo)
+                  }}
+                  title="Deletar grupo"
                 >
-                  Deletar grupo
+                  <TrashIcon className="h-5 w-5 text-red-400" />
+                  <span>Deletar grupo</span>
                 </button>
               </li>
             ))}
@@ -165,51 +170,55 @@ export default function LotesQuestoesPage() {
       ) : (
         <div>
           <button
-            className="mb-4 text-cyan-400 underline"
+            className="mb-4 text-cyan-400 underline flex items-center gap-1"
             onClick={() => setGrupoSelecionado(null)}
           >
-            ← Voltar para grupos
+            <ArrowLeftIcon className="h-5 w-5 inline text-cyan-400" />
+            <span>Voltar para grupos</span>
           </button>
-          <table className="min-w-full text-sm text-left text-slate-300 bg-slate-800 rounded-xl overflow-hidden">
-            <thead>
-              <tr>
-                <th className="p-2">Enunciado</th>
-                <th className="p-2">Alternativas</th>
-                <th className="p-2">Resposta</th>
-                <th className="p-2">Banca</th>
-                <th className="p-2">Concurso</th>
-                <th className="p-2">Disciplina</th>
-                <th className="p-2">Ano</th>
-                <th className="p-2">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {questoes
-                .filter((q) => (q.conjunto || 'Sem grupo') === grupoSelecionado)
-                .map((q) => (
-                  <tr key={q.id} className="border-b border-slate-700/30">
-                    {editId === q.id ? (
-                      <>
-                        <td className="p-2">
-                          <input
-                            className="w-full bg-slate-900 text-white"
-                            value={editData.enunciado || ''}
-                            onChange={(e) =>
-                              setEditData((d) => ({
-                                ...d,
-                                enunciado: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="p-2">
+          <div className="space-y-6">
+            {questoes
+              .filter((q) => (q.conjunto || 'Sem grupo') === grupoSelecionado)
+              .map((q) => (
+                <div
+                  key={q.id}
+                  className="bg-slate-800/20 backdrop-blur rounded-xl p-6 border border-slate-700/30 space-y-4"
+                >
+                  {editId === q.id ? (
+                    <>
+                      {/* ENUNCIADO */}
+                      <div>
+                        <label className="text-cyan-400 font-semibold">
+                          Enunciado
+                        </label>
+                        <input
+                          className="input-style-1"
+                          value={editData.enunciado || ''}
+                          onChange={(e) =>
+                            setEditData((d) => ({
+                              ...d,
+                              enunciado: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+
+                      {/* ALTERNATIVAS */}
+                      <div>
+                        <label className="text-cyan-400 font-semibold">
+                          Alternativas
+                        </label>
+                        <div className="space-y-2 mt-2">
                           {Object.entries(q.opcoes).map(([letra, texto]) => (
-                            <div key={letra} className="mb-1">
-                              <span className="font-bold text-cyan-300 mr-1">
+                            <div
+                              key={letra}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="font-bold text-cyan-300">
                                 {letra.toUpperCase()}:
                               </span>
                               <input
-                                className="bg-slate-900 text-white"
+                                className="input-style-1"
                                 value={editData.opcoes?.[letra] ?? texto}
                                 onChange={(e) =>
                                   setEditData((d) => ({
@@ -223,86 +232,73 @@ export default function LotesQuestoesPage() {
                               />
                             </div>
                           ))}
-                        </td>
-                        <td className="p-2">
+                        </div>
+                      </div>
+
+                      {/* CAMPOS SIMPLES */}
+                      {(
+                        [
+                          'resposta',
+                          'banca',
+                          'concurso',
+                          'disciplina',
+                          'ano',
+                        ] as (keyof Questao)[]
+                      ).map((campo) => (
+                        <div key={campo}>
+                          <label className="text-cyan-400 font-semibold capitalize">
+                            {campo}
+                          </label>
                           <input
-                            className="w-12 bg-slate-900 text-white"
-                            value={editData.resposta || ''}
+                            className="input-style-1"
+                            value={
+                              typeof editData[campo] === 'string' ||
+                              typeof editData[campo] === 'number'
+                                ? editData[campo]
+                                : ''
+                            }
                             onChange={(e) =>
                               setEditData((d) => ({
                                 ...d,
-                                resposta: e.target.value,
+                                [campo]:
+                                  campo === 'ano'
+                                    ? Number(e.target.value)
+                                    : e.target.value,
                               }))
                             }
                           />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            className="w-24 bg-slate-900 text-white"
-                            value={editData.banca || ''}
-                            onChange={(e) =>
-                              setEditData((d) => ({
-                                ...d,
-                                banca: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            className="w-24 bg-slate-900 text-white"
-                            value={editData.concurso || ''}
-                            onChange={(e) =>
-                              setEditData((d) => ({
-                                ...d,
-                                concurso: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            className="w-24 bg-slate-900 text-white"
-                            value={editData.disciplina || ''}
-                            onChange={(e) =>
-                              setEditData((d) => ({
-                                ...d,
-                                disciplina: e.target.value,
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            className="w-16 bg-slate-900 text-white"
-                            value={editData.ano || ''}
-                            onChange={(e) =>
-                              setEditData((d) => ({
-                                ...d,
-                                ano: Number(e.target.value),
-                              }))
-                            }
-                          />
-                        </td>
-                        <td className="p-2 space-x-2">
-                          <button
-                            className="bg-green-700 px-3 py-1 rounded"
-                            onClick={saveEdit}
-                          >
-                            Salvar
-                          </button>
-                          <button
-                            className="bg-slate-700 px-3 py-1 rounded"
-                            onClick={cancelEdit}
-                          >
-                            Cancelar
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="p-2">{q.enunciado.slice(0, 40)}...</td>
-                        <td className="p-2">
+                        </div>
+                      ))}
+
+                      {/* BOTÕES */}
+                      <div className="flex gap-3 pt-2">
+                        <button className="button-cyan" onClick={saveEdit}>
+                          Salvar
+                        </button>
+                        <button
+                          className="button-red-real"
+                          onClick={cancelEdit}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* ENUNCIADO */}
+                      <div>
+                        <h3 className="text-cyan-400 font-semibold">
+                          Enunciado
+                        </h3>
+                        <p className="mt-1">{q.enunciado}</p>
+                      </div>
+
+                      {/* ALTERNATIVAS */}
+                      <div>
+                        <h3 className="text-cyan-400 font-semibold">
+                          Alternativas
+                        </h3>
+                        <div className="mt-2 space-y-1">
                           {Object.entries(q.opcoes).map(([letra, texto]) => (
                             <div key={letra}>
                               <span className="font-bold text-cyan-300 mr-1">
@@ -311,32 +307,63 @@ export default function LotesQuestoesPage() {
                               {texto}
                             </div>
                           ))}
-                        </td>
-                        <td className="p-2">{q.resposta}</td>
-                        <td className="p-2">{q.banca}</td>
-                        <td className="p-2">{q.concurso}</td>
-                        <td className="p-2">{q.disciplina}</td>
-                        <td className="p-2">{q.ano}</td>
-                        <td className="p-2 space-x-2">
-                          <button
-                            className="bg-yellow-700 px-3 py-1 rounded"
-                            onClick={() => startEdit(q)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            className="bg-red-700 px-3 py-1 rounded"
-                            onClick={() => handleDelete(q.id)}
-                          >
-                            Deletar
-                          </button>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+                        </div>
+                      </div>
+
+                      {/* METADADOS */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-cyan-400 font-semibold">
+                            Resposta:
+                          </span>{' '}
+                          {q.resposta}
+                        </div>
+                        <div>
+                          <span className="text-cyan-400 font-semibold">
+                            Ano:
+                          </span>{' '}
+                          {q.ano}
+                        </div>
+                        <div>
+                          <span className="text-cyan-400 font-semibold">
+                            Banca:
+                          </span>{' '}
+                          {q.banca}
+                        </div>
+                        <div>
+                          <span className="text-cyan-400 font-semibold">
+                            Concurso:
+                          </span>{' '}
+                          {q.concurso}
+                        </div>
+                        <div>
+                          <span className="text-cyan-400 font-semibold">
+                            Disciplina:
+                          </span>{' '}
+                          {q.disciplina}
+                        </div>
+                      </div>
+
+                      {/* AÇÕES */}
+                      <div className="flex gap-3 pt-4">
+                        <button
+                          className="button-cyan"
+                          onClick={() => startEdit(q)}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="button-red-real"
+                          onClick={() => handleDelete(q.id)}
+                        >
+                          Deletar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>

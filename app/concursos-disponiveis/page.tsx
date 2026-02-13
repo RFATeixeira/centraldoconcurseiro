@@ -287,7 +287,7 @@ export default function ConcursosDisponiveis() {
               return (
                 <div
                   key={concurso.id}
-                  className="glassmorphism-pill rounded-2xl p-6 flex flex-col gap-4"
+                  className="glassmorphism-pill rounded-2xl w-fit p-4 flex flex-col gap-4"
                 >
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-1">

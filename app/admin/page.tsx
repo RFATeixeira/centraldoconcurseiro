@@ -8,7 +8,12 @@ import { useAuth } from '../context/AuthContext'
 import ModalAdicionarQuestao from '../../components/ModalAdicionarQuestao'
 import UploadQuestoes from '../../components/UploadQuestoes'
 import UploadClassificacoes from '../../components/UploadClassificacoes'
-import { PencilSquareIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import {
+  PencilSquareIcon,
+  XMarkIcon,
+  DocumentTextIcon,
+  TrophyIcon,
+} from '@heroicons/react/24/outline'
 
 export default function AdminPage() {
   const { user, profile, loading } = useAuth()
@@ -74,15 +79,17 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
                 onClick={() => setIsModalQuestionOpen(true)}
-                className="button-cyan justify-center items-center"
+                className="button-cyan justify-center items-center flex gap-2"
               >
-                ✏️ Questão Manual
+                <PencilSquareIcon className="h-5 w-5" />
+                <span>Questão Manual</span>
               </button>
               <button
                 onClick={() => setIsModalUploadOpen(true)}
-                className="button-red justify-center items-center"
+                className="button-red justify-center items-center flex gap-2"
               >
-                📄 CSV ou JSON
+                <DocumentTextIcon className="h-5 w-5" />
+                <span>CSV ou JSON</span>
               </button>
             </div>
           </div>
@@ -90,7 +97,7 @@ export default function AdminPage() {
           <div className="glassmorphism-pill rounded-3xl flex flex-col p-6 hover:ring-cyan-600 transition-all">
             <div className="flex items-start gap-4 mb-4">
               <div className="p-3 bg-cyan-500/20 rounded-xl">
-                <span className="text-2xl">🏆</span>
+                <TrophyIcon className="h-6 w-6 text-cyan-400" />
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-bold text-white">
@@ -103,9 +110,10 @@ export default function AdminPage() {
             </div>
             <button
               onClick={() => setIsModalClassificacoesOpen(true)}
-              className="button-cyan justify-center items-center"
+              className="button-cyan justify-center items-center flex gap-2"
             >
-              🏆 Importar Classificação
+              <TrophyIcon className="h-5 w-5 text-cyan-400" />
+              <span>Importar Classificação</span>
             </button>
           </div>
         </div>

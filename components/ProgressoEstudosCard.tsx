@@ -15,6 +15,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { ChartBarIcon } from '@heroicons/react/24/solid'
 
 interface DiaProgresso {
   dia: string
@@ -210,7 +211,7 @@ export default function ProgressoEstudosCard() {
       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
         <div className="p-2 bg-linear-to-br from-cyan-400/20 to-cyan-500/20 rounded-full">
           <div className="h-6 w-6 text-cyan-300 flex items-center justify-center">
-            📊
+            <ChartBarIcon className="h-6 w-6 text-cyan-300" />
           </div>
         </div>
         <div className="flex-1">
@@ -271,14 +272,14 @@ export default function ProgressoEstudosCard() {
 
       {/* Distribuição por Dia */}
       <div className="space-y-2 border-t border-white/10 pt-4">
-        <p className="text-xs text-gray-300 uppercase tracking-wider font-semibold mb-3">
+        <p className="text-xs text-gray-300 uppercase tracking-wider font-semibold mb-2">
           Distribuição
         </p>
-        <div className="w-full h-48">
+        <div className="w-full h-30">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={progressoPorDia}
-              margin={{ top: 10, right: 10, bottom: 40, left: 10 }}
+              margin={{ top: 10, right: 10, bottom: -20, left: 10 }}
             >
               <CartesianGrid
                 strokeDasharray="3 3"
@@ -293,18 +294,28 @@ export default function ProgressoEstudosCard() {
                 angle={0}
               />
               <Tooltip
+                cursor={false}
                 contentStyle={{
                   backgroundColor: 'rgba(0,0,0,0.8)',
-                  border: '1px solid rgba(6,182,212,0.4)',
+                  border: '2px solid rgba(6,182,212,0.4)',
                   borderRadius: '6px',
+                  backdropFilter: 'blur(10px)',
                 }}
-                labelStyle={{ color: '#fff', fontSize: '12px' }}
+                labelStyle={{
+                  color: '#fff',
+                  fontSize: '12px',
+                }}
+                itemStyle={{
+                  color: '#fff',
+                  fontSize: '13px',
+                }}
                 formatter={(value) => `${value} q`}
               />
               <Bar
                 dataKey="questoes"
-                radius={[4, 4, 0, 0]}
+                radius={[16, 16, 0, 0]}
                 isAnimationActive={false}
+                activeBar={{ fill: '#22d3ee' }} // cor quando hover
               >
                 {progressoPorDia.map((entry, index) => {
                   const colors = [

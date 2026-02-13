@@ -31,9 +31,14 @@ export default function UploadQuestoes() {
   const [showPreview, setShowPreview] = useState(false)
   const [fileName, setFileName] = useState<string>('')
   const [gabarito, setGabarito] = useState<Gabarito | null>(null)
+  const [nomeLote, setNomeLote] = useState<string>('')
 
   // Função para enviar questões para o backend (exemplo: salvar no Firestore)
   async function handleEnviarQuestoes() {
+    if (!nomeLote.trim()) {
+      setError('O nome do lote é obrigatório.')
+      return
+    }
     setIsLoading(true)
     setError(null)
     setSuccess(null)
@@ -58,6 +63,7 @@ export default function UploadQuestoes() {
           concurso: questao.concurso,
           disciplina: questao.disciplina,
           ano: questao.ano,
+          conjunto: nomeLote.trim(),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         })
@@ -68,6 +74,7 @@ export default function UploadQuestoes() {
       setPreviewQuestoes([])
       setFileName('')
       setGabarito(null)
+      setNomeLote('')
     } catch (err) {
       setError('Erro ao enviar questões: ' + (err as Error).message)
     } finally {
@@ -191,11 +198,20 @@ export default function UploadQuestoes() {
           />
         </label>
       </div>
-      <div className="flex justify-center mt-4">
+      <div className="flex flex-col items-center gap-2 mt-4">
+        <input
+          type="text"
+          className="input-style-1"
+          placeholder="Nome do lote (obrigatório)"
+          value={nomeLote}
+          onChange={(e) => setNomeLote(e.target.value)}
+          disabled={isLoading}
+          required
+        />
         <button
           onClick={handleEnviarQuestoes}
           className="button-cyan"
-          disabled={isLoading}
+          disabled={isLoading || !nomeLote.trim()}
         >
           {isLoading ? 'Enviando... (Não feche a página!)' : 'Enviar questões'}
         </button>
