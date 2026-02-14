@@ -40,7 +40,7 @@ export default function MobileNavBar() {
       )}
 
       {/* NavBar Flutuante - Fundo */}
-      <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-200">
+      <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-500">
         <div className="bg-black/60 backdrop-blur-[0.2rem] border border-white/10 rounded-full px-4 py-3 flex items-center gap-6 shadow-2xl">
           <Link
             href="/"
