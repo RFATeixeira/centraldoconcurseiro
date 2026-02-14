@@ -431,6 +431,11 @@ export default function Perfil() {
             <p>Conta criada em: </p>
             <p>{formatDate(createdAt)}</p>
           </div>
+          <div className="mt-6">
+            <Link href="/info" className="button-cyan text-sm">
+              Informações e Termos
+            </Link>
+          </div>
         </div>
       </div>
     </main>

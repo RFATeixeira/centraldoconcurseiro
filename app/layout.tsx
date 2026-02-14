@@ -72,7 +72,10 @@ export default function RootAppTestLayout({
                 <div className="flex-1">{children}</div>
               </AuthGuard>
               <MobileNavBar />
-              <Footer />
+              {/* Footer só aparece em desktop */}
+              <div className="hidden md:block">
+                <Footer />
+              </div>
             </HeaderProvider>
           </AuthProvider>
         </UIProvider>
