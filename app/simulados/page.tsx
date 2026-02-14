@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState } from 'react'
+
 import {
   collection,
   query,
@@ -26,6 +27,7 @@ import {
   ChatBubbleLeftIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
+import SelectCustom from '@/components/SelectCustom'
 
 interface Questao {
   id: string
@@ -96,8 +98,6 @@ export default function Simulados() {
   const [selectedBanca, setSelectedBanca] = useState<string>('todos')
   const [selectedConcurso, setSelectedConcurso] = useState<string>('todos')
   const [selectedDisciplina, setSelectedDisciplina] = useState<string>('todos')
-  // const [selectedDificuldade, setSelectedDificuldade] =
-  //   useState<string>('todos')
   const [selectedStatusResposta, setSelectedStatusResposta] =
     useState<string>('todos')
 
@@ -127,14 +127,83 @@ export default function Simulados() {
     try {
       setCarregandoMais(true)
 
-      const whereConstraints = []
+      const questoesRespondidasIds: string[] = []
+      const respostasMap: Record<string, string> = {}
+      const resultadosMap: Record<
+        string,
+        { correto: boolean; respostaEscolhida: string }
+      > = {}
 
+      // Se filtro de status de resposta está ativo, buscar respostas do usuário
+      if (user && selectedStatusResposta !== 'todos') {
+        const respostasRef = collection(
+          db,
+          'users',
+          user.uid,
+          'respostas_simulados',
+        )
+        const respostasSnap = await getDocs(respostasRef)
+        respostasSnap.forEach((doc) => {
+          const dados = doc.data()
+          questoesRespondidasIds.push(dados.questaoId)
+          respostasMap[dados.questaoId] = dados.respostaEscolhida
+          resultadosMap[dados.questaoId] = {
+            correto: dados.correto,
+            respostaEscolhida: dados.respostaEscolhida,
+          }
+        })
+        setRespostasEscolhidas(respostasMap)
+        setResultados(resultadosMap)
+      } else if (user && reset) {
+        // Carregar respostas para exibir status mesmo sem filtro
+        const respostasRef = collection(
+          db,
+          'users',
+          user.uid,
+          'respostas_simulados',
+        )
+        const respostasSnap = await getDocs(respostasRef)
+        respostasSnap.forEach((doc) => {
+          const dados = doc.data()
+          respostasMap[dados.questaoId] = dados.respostaEscolhida
+          resultadosMap[dados.questaoId] = {
+            correto: dados.correto,
+            respostaEscolhida: dados.respostaEscolhida,
+          }
+        })
+        setRespostasEscolhidas(respostasMap)
+        setResultados(resultadosMap)
+      }
+
+      const whereConstraints = []
       if (selectedBanca !== 'todos')
         whereConstraints.push(where('banca', '==', selectedBanca))
       if (selectedConcurso !== 'todos')
         whereConstraints.push(where('concurso', '==', selectedConcurso))
       if (selectedDisciplina !== 'todos')
         whereConstraints.push(where('disciplina', '==', selectedDisciplina))
+
+      // Filtro de status de resposta direto no banco
+      if (
+        user &&
+        selectedStatusResposta === 'respondidas' &&
+        questoesRespondidasIds.length > 0
+      ) {
+        // Firestore limita a 10 elementos no 'in', então paginar se necessário
+        whereConstraints.push(
+          where('__name__', 'in', questoesRespondidasIds.slice(0, 10)),
+        )
+      }
+      if (
+        user &&
+        selectedStatusResposta === 'nao-respondidas' &&
+        questoesRespondidasIds.length > 0
+      ) {
+        // Firestore limita a 10 elementos no 'not-in', então paginar se necessário
+        whereConstraints.push(
+          where('__name__', 'not-in', questoesRespondidasIds.slice(0, 10)),
+        )
+      }
 
       let q
       if (!reset && ultimoDoc) {
@@ -189,40 +258,6 @@ export default function Simulados() {
       setUltimoDoc(snapshot.docs[snapshot.docs.length - 1])
       setTemMais(snapshot.docs.length === 5)
       setQuestoesCarregadas(true)
-
-      if (reset && user) {
-        try {
-          const respostasRef = collection(
-            db,
-            'users',
-            user.uid,
-            'respostas_simulados',
-          )
-
-          const respostasSnap = await getDocs(respostasRef)
-
-          const respostasMap: Record<string, string> = {}
-          const resultadosMap: Record<
-            string,
-            { correto: boolean; respostaEscolhida: string }
-          > = {}
-
-          respostasSnap.forEach((doc) => {
-            const dados = doc.data()
-            respostasMap[dados.questaoId] = dados.respostaEscolhida
-            resultadosMap[dados.questaoId] = {
-              correto: dados.correto,
-              respostaEscolhida: dados.respostaEscolhida,
-            }
-          })
-
-          setRespostasEscolhidas(respostasMap)
-          setResultados(resultadosMap)
-          console.log('✅ Respostas carregadas do Firestore')
-        } catch (error) {
-          console.error('Erro ao carregar respostas do usuário:', error)
-        }
-      }
     } catch (error) {
       console.error('Erro ao carregar questões:', error)
     } finally {
@@ -230,34 +265,41 @@ export default function Simulados() {
     }
   }
 
-  // Obter opções únicas de filtros
-  const opcoesFiltros = useMemo(() => {
-    const bancas = new Set<string>()
-    const concursos = new Set<string>()
-    const disciplinas = new Set<string>()
+  // Opções de filtros vindas do Firestore
+  const [opcoesFiltros, setOpcoesFiltros] = useState({
+    bancas: [] as string[],
+    concursos: [] as string[],
+    disciplinas: [] as string[],
+  })
 
-    questoes.forEach((q) => {
-      bancas.add(q.banca)
-      concursos.add(q.concurso)
-      disciplinas.add(q.disciplina)
-    })
-
-    return {
-      bancas: Array.from(bancas).sort(),
-      concursos: Array.from(concursos).sort(),
-      disciplinas: Array.from(disciplinas).sort(),
+  // Buscar opções únicas de filtros no Firestore ao carregar a página
+  useEffect(() => {
+    async function buscarOpcoesFiltros() {
+      try {
+        const snapshot = await getDocs(collection(db, 'questoes'))
+        const bancas = new Set<string>()
+        const concursos = new Set<string>()
+        const disciplinas = new Set<string>()
+        snapshot.forEach((doc) => {
+          const data = doc.data()
+          if (data.banca) bancas.add(data.banca)
+          if (data.concurso) concursos.add(data.concurso)
+          if (data.disciplina) disciplinas.add(data.disciplina)
+        })
+        setOpcoesFiltros({
+          bancas: Array.from(bancas).sort(),
+          concursos: Array.from(concursos).sort(),
+          disciplinas: Array.from(disciplinas).sort(),
+        })
+      } catch (error) {
+        console.error('Erro ao buscar opções de filtros:', error)
+      }
     }
-  }, [questoes])
+    buscarOpcoesFiltros()
+  }, [])
 
-  // Filtrar por status de resposta só na renderização
-  const questoesPaginadas = useMemo(() => {
-    if (selectedStatusResposta === 'todos') return questoes
-    return questoes.filter((q) => {
-      if (selectedStatusResposta === 'respondidas') return !!resultados[q.id]
-      if (selectedStatusResposta === 'nao-respondidas') return !resultados[q.id]
-      return true
-    })
-  }, [questoes, selectedStatusResposta, resultados])
+  // Não precisa mais filtrar localmente, pois já filtramos no Firestore
+  const questoesPaginadas = questoes
 
   const handleAdicionarComentario = async (questaoId: string) => {
     const textoComentario = novoComentarioPorQuestao[questaoId]
@@ -449,56 +491,59 @@ export default function Simulados() {
       <div className="max-w-6xl w-full mx-auto flex flex-col gap-4 px-4 ">
         {/* Filtros fixos no topo */}
         <div className="glassmorphism-pill w-full p-4 rounded-3xl flex flex-col md:flex-row gap-3 flex-wrap sticky top-20 md:top-24 z-40">
-          <select
-            value={selectedBanca}
-            onChange={(e) => setSelectedBanca(e.target.value)}
-            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
-          >
-            <option value="todos">Todas as Bancas</option>
-            {opcoesFiltros.bancas.map((banca) => (
-              <option key={banca} value={banca}>
-                {banca}
-              </option>
-            ))}
-          </select>
+          <div className="w-full md:w-56">
+            <SelectCustom
+              value={selectedBanca}
+              onChange={setSelectedBanca}
+              options={[
+                { value: 'todos', label: 'Todas as Bancas' },
+                ...opcoesFiltros.bancas.map((banca) => ({
+                  value: banca,
+                  label: banca,
+                })),
+              ]}
+            />
+          </div>
 
-          <select
-            value={selectedConcurso}
-            onChange={(e) => setSelectedConcurso(e.target.value)}
-            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
-          >
-            <option value="todos">Todos os Concursos</option>
-            {opcoesFiltros.concursos.map((concurso) => (
-              <option key={concurso} value={concurso}>
-                {concurso}
-              </option>
-            ))}
-          </select>
+          <div className="w-full md:w-56">
+            <SelectCustom
+              value={selectedConcurso}
+              onChange={setSelectedConcurso}
+              options={[
+                { value: 'todos', label: 'Todos os Concursos' },
+                ...opcoesFiltros.concursos.map((concurso) => ({
+                  value: concurso,
+                  label: concurso,
+                })),
+              ]}
+            />
+          </div>
 
-          <select
-            value={selectedDisciplina}
-            onChange={(e) => setSelectedDisciplina(e.target.value)}
-            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50 "
-          >
-            <option value="todos">Todas as Disciplinas</option>
-            {opcoesFiltros.disciplinas.map((disciplina) => (
-              <option key={disciplina} value={disciplina}>
-                {disciplina}
-              </option>
-            ))}
-          </select>
+          <div className="w-full md:w-56">
+            <SelectCustom
+              value={selectedDisciplina}
+              onChange={setSelectedDisciplina}
+              options={[
+                { value: 'todos', label: 'Todas as Disciplinas' },
+                ...opcoesFiltros.disciplinas.map((disciplina) => ({
+                  value: disciplina,
+                  label: disciplina,
+                })),
+              ]}
+            />
+          </div>
 
-          {/* Filtro de dificuldade removido */}
-
-          <select
-            value={selectedStatusResposta}
-            onChange={(e) => setSelectedStatusResposta(e.target.value)}
-            className="glassmorphism-pill ring-2 ring-cyan-400/30 focus:ring-cyan-400/50"
-          >
-            <option value="todos">Todas as Questões</option>
-            <option value="respondidas">✓ Respondidas</option>
-            <option value="nao-respondidas">○ Não Respondidas</option>
-          </select>
+          <div className="w-full md:w-56">
+            <SelectCustom
+              value={selectedStatusResposta}
+              onChange={setSelectedStatusResposta}
+              options={[
+                { value: 'todos', label: 'Todos os Status' },
+                { value: 'respondida', label: 'Respondida' },
+                { value: 'nao-respondida', label: 'Não Respondida' },
+              ]}
+            />
+          </div>
         </div>
 
         {/* Lista de questões */}
