@@ -26,39 +26,6 @@ export default function UserConcursoCard({
     )
   }
 
-  const formatDate = (date?: string | { toDate(): Date }) => {
-    if (!date) return 'Não informado'
-    try {
-      // Se for um timestamp do Firestore (objeto com toDate)
-      if (date && typeof date === 'object' && 'toDate' in date) {
-        return date.toDate().toLocaleDateString('pt-BR')
-      }
-
-      // Se for string no formato DD/MM/YYYY, converter para Date
-      if (typeof date === 'string' && date.includes('/')) {
-        const [day, month, year] = date.split('/').map(Number)
-        const parsedDate = new Date(year, month - 1, day)
-
-        if (isNaN(parsedDate.getTime())) {
-          return 'Data inválida'
-        }
-
-        return parsedDate.toLocaleDateString('pt-BR')
-      }
-
-      // Tentar parse direto
-      const parsedDate = new Date(date)
-
-      if (isNaN(parsedDate.getTime())) {
-        return 'Data inválida'
-      }
-
-      return parsedDate.toLocaleDateString('pt-BR')
-    } catch {
-      return 'Data inválida'
-    }
-  }
-
   return (
     <div
       className="w-full md:w-80 max-w-full card-style-1 relative"
@@ -93,27 +60,6 @@ export default function UserConcursoCard({
         <h3 className="text-lg font-semibold text-white text-center">
           {profile?.name || 'Usuário'}
         </h3>
-      </div>
-
-      {/* Informações Pessoais */}
-      <div className="space-y-4 mb-4 border-t border-white/10 pt-4">
-        <div>
-          <p className="text-xs text-gray-300 uppercase tracking-wider">
-            Data de Nascimento
-          </p>
-          <p className="text-sm text-white font-medium mt-1">
-            {formatDate(profile?.birthDate)}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-xs text-gray-300 uppercase tracking-wider">
-            Email
-          </p>
-          <p className="text-sm text-white font-medium mt-1 break-all">
-            {profile?.email || 'Não disponível'}
-          </p>
-        </div>
       </div>
 
       {/* Estatísticas de Concursos */}

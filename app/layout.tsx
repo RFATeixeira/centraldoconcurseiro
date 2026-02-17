@@ -10,7 +10,7 @@ import MobileNavBar from '../components/MobileNavBar'
 import { AuthProvider } from './context/AuthContext'
 import { HeaderProvider } from './context/HeaderContext'
 import { UIProvider } from './context/UIContext'
-import Footer from '../components/Footer'
+import FooterVisibilityWrapper from '../components/FooterVisibilityWrapper'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -72,10 +72,8 @@ export default function RootAppTestLayout({
                 <div className="flex-1">{children}</div>
               </AuthGuard>
               <MobileNavBar />
-              {/* Footer só aparece em desktop */}
-              <div className="hidden md:block">
-                <Footer />
-              </div>
+              {/* Footer só aparece em desktop, exceto no chat */}
+              <FooterVisibilityWrapper />
             </HeaderProvider>
           </AuthProvider>
         </UIProvider>

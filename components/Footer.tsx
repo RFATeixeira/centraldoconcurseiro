@@ -26,12 +26,12 @@ const Footer = () => (
         <span>
           Para dúvidas ou sugestões, entre em contato:{' '}
           <a
-            href="https://instragram.com/sistema.cdc"
+            href="https://instagram.com/centraldconcurseiro"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-cyan-400"
           >
-            ( Instagram @sistema.cdc )
+            ( Instagram @centraldc )
           </a>
         </span>
       </div>

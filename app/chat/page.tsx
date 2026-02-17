@@ -204,10 +204,10 @@ export default function Chat() {
     // Carregar todos os chats (filtra no cliente para evitar índice composto)
     const q = collection(db, 'chats')
 
+    let msgUnsubs: Array<() => void> = []
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        console.log('📨 Chats recebidos:', snapshot.size)
         const allChats = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -218,14 +218,59 @@ export default function Chat() {
           chat.members.includes(user!.uid),
         )
 
-        // Ordenar por updatedAt (mais recente primeiro)
-        userChats.sort((a, b) => {
-          const timeA = a.updatedAt?.toMillis?.() || 0
-          const timeB = b.updatedAt?.toMillis?.() || 0
-          return timeB - timeA
-        })
+        // Fixar o chat 'Geral' como primeiro
+        const geralIndex = userChats.findIndex((c) => c.nome === 'Geral')
+        let geralChat: Chat | undefined
+        if (geralIndex !== -1) {
+          geralChat = userChats.splice(geralIndex, 1)[0]
+        }
 
-        setChats(userChats)
+        // Função para atualizar a ordem dos chats
+        type ChatWithLastMsgTime = Chat & { _lastMsgTime: number }
+        const updateChatsOrder = (chatsWithLastMsg: ChatWithLastMsgTime[]) => {
+          chatsWithLastMsg.sort((a, b) => b._lastMsgTime - a._lastMsgTime)
+          const orderedChats = geralChat
+            ? [geralChat, ...chatsWithLastMsg]
+            : chatsWithLastMsg
+          setChats(orderedChats)
+        }
+
+        // Limpar listeners antigos
+        msgUnsubs.forEach((fn) => fn())
+        msgUnsubs = []
+
+        // Adicionar listeners para cada chat (exceto Geral)
+        const chatsWithLastMsg: ChatWithLastMsgTime[] = []
+        let pending = userChats.length
+        if (pending === 0) {
+          updateChatsOrder([])
+        }
+        userChats.forEach((chat) => {
+          const msgQ = query(
+            collection(db, 'chats', chat.id, 'messages'),
+            orderBy('createdAt', 'desc'),
+          )
+          const unsub = onSnapshot(msgQ, (msgSnap) => {
+            const lastMsg = msgSnap.docs[0]?.data()
+            const lastMsgTime =
+              lastMsg?.createdAt?.toMillis?.() ||
+              chat.updatedAt?.toMillis?.() ||
+              0
+            // Atualiza ou adiciona chat na lista
+            const idx = chatsWithLastMsg.findIndex((c) => c.id === chat.id)
+            if (idx !== -1) {
+              chatsWithLastMsg[idx] = { ...chat, _lastMsgTime: lastMsgTime }
+            } else {
+              chatsWithLastMsg.push({ ...chat, _lastMsgTime: lastMsgTime })
+            }
+            // Só atualiza quando todos listeners dispararem pelo menos uma vez
+            pending--
+            if (pending <= 0) {
+              updateChatsOrder([...chatsWithLastMsg])
+            }
+          })
+          msgUnsubs.push(unsub)
+        })
 
         // Selecionar primeiro chat automaticamente
         if (userChats.length > 0 && !selectedChat) {
@@ -243,6 +288,7 @@ export default function Chat() {
     // Cleanup
     return () => {
       unsubscribe()
+      msgUnsubs.forEach((fn) => fn())
     }
   }, [loading, user, router, selectedChat])
 
@@ -318,37 +364,90 @@ export default function Chat() {
 
     setIsSending(true)
 
+    // Buscar dados do perfil do usuário
+    let userName = user.displayName || 'Usuário'
+    let userPhoto = user.photoURL || ''
     try {
-      // Buscar dados do perfil do usuário
       const userDoc = await getDoc(doc(db, 'users', user.uid))
       const userData = userDoc.data()
-      const userName = userData?.name || user.displayName || 'Usuário'
-      const userPhoto = userData?.photo || user.photoURL || ''
+      userName = userData?.name || userName
+      userPhoto = userData?.photo || userPhoto
+    } catch {}
 
+    // Mensagem otimista
+    const tempId = 'temp-' + Date.now()
+    const optimisticMsg: Message = {
+      id: tempId,
+      uid: user.uid,
+      nome: userName,
+      photoUrl: userPhoto,
+      texto: messageText.trim(),
+      createdAt: new Timestamp(Math.floor(Date.now() / 1000), 0),
+      ...(replyingTo
+        ? {
+            replyTo: {
+              id: replyingTo.id,
+              nome: replyingTo.nome,
+              texto: replyingTo.texto,
+            },
+          }
+        : {}),
+    }
+
+    setMessages((msgs) => [...msgs, optimisticMsg])
+    setMessageText('')
+    setReplyingTo(null)
+
+    // Otimisticamente, atualize _lastMsgTime apenas se necessário para evitar "pulo" visual
+    setChats((prevChats) => {
+      if (!selectedChat) return prevChats
+      const idx = prevChats.findIndex((c) => c.id === selectedChat.id)
+      if (idx === -1) return prevChats
+      const now = Date.now()
+      // Safe type for _lastMsgTime
+      const chat = prevChats[idx] as Chat & { _lastMsgTime?: number }
+      if (idx === 0 && chat._lastMsgTime && chat._lastMsgTime >= now) {
+        return prevChats
+      }
+      // Atualiza _lastMsgTime e reordena
+      const updatedChats = prevChats.map((c) =>
+        c.id === selectedChat.id ? { ...c, _lastMsgTime: now } : c,
+      )
+      // Se "Geral" é fixo, preserve na frente
+      const isGeral = updatedChats[0]?.nome === 'Geral'
+      const geral = isGeral ? updatedChats[0] : null
+      const chatsToSort = isGeral ? updatedChats.slice(1) : updatedChats
+      chatsToSort.sort((a, b) => {
+        const aTime =
+          typeof (a as { _lastMsgTime?: number })._lastMsgTime === 'number'
+            ? (a as { _lastMsgTime?: number })._lastMsgTime!
+            : 0
+        const bTime =
+          typeof (b as { _lastMsgTime?: number })._lastMsgTime === 'number'
+            ? (b as { _lastMsgTime?: number })._lastMsgTime!
+            : 0
+        return bTime - aTime
+      })
+      return geral ? [geral, ...chatsToSort] : chatsToSort
+    })
+
+    try {
       const messageData: MessageData = {
         uid: user.uid,
         nome: userName,
         photoUrl: userPhoto,
-        texto: messageText.trim(),
+        texto: optimisticMsg.texto,
         createdAt: serverTimestamp(),
+        ...(optimisticMsg.replyTo ? { replyTo: optimisticMsg.replyTo } : {}),
       }
-
-      if (replyingTo) {
-        messageData.replyTo = {
-          id: replyingTo.id,
-          nome: replyingTo.nome,
-          texto: replyingTo.texto,
-        }
-      }
-
       await addDoc(
         collection(db, 'chats', selectedChat.id, 'messages'),
         messageData,
       )
-
-      setMessageText('')
-      setReplyingTo(null)
+      // Mensagem real será sincronizada pelo onSnapshot
     } catch {
+      // Se falhar, remove a mensagem otimista
+      setMessages((msgs) => msgs.filter((m) => m.id !== tempId))
       console.error('Erro ao enviar mensagem')
     } finally {
       setIsSending(false)
@@ -608,172 +707,74 @@ export default function Chat() {
                 Nenhuma mensagem ainda
               </div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex gap-2 ${
-                    msg.uid === user?.uid ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  {msg.uid !== user?.uid && selectedChat?.tipo === 'group' && (
-                    <div className="flex flex-col gap-1 items-center group">
-                      <div
-                        onClick={() => openUserOptions(msg.uid, msg.nome)}
-                        className="w-8 h-8 rounded-full bg-cyan-500/20 shrink-0 flex items-center justify-center cursor-pointer hover:bg-cyan-500/30 transition-colors"
-                        title="Ver opções"
-                      >
-                        {msg.photoUrl ? (
-                          <Image
-                            src={msg.photoUrl}
-                            alt={msg.nome}
-                            width={32}
-                            height={32}
-                            className="rounded-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-xs text-cyan-300">
-                            {msg.nome[0]}
-                          </span>
-                        )}
-                      </div>
-                      {/* Botões abaixo da foto para mensagens de outros */}
-                      <div
-                        onClick={(e) => e.stopPropagation()}
-                        className={`flex-col gap-1 ${
-                          selectedMessageId === msg.id ? 'flex' : 'hidden'
-                        }`}
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setReplyingTo(msg)
-                            setSelectedMessageId(null)
-                            setActivatingMessageId(null)
-                          }}
-                          className="p-1.5 button-cyan"
-                          title="Responder"
-                        >
-                          <ArrowUturnLeftIcon className="h-4 w-4" />
-                        </button>
-                        {canDeleteMessage(msg) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDeleteMessage(msg.id)
-                              setSelectedMessageId(null)
-                              setActivatingMessageId(null)
-                            }}
-                            className="p-1.5 button-red-real"
-                            title="Deletar"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
+              (() => {
+                // Identifica blocos de mensagens do mesmo usuário em até 5 minutos
+                const blocks: { showTime: boolean }[] = []
+                for (let i = 0; i < messages.length; i++) {
+                  const curr = messages[i]
+                  const next = messages[i + 1]
+                  let showTime = true
+                  if (
+                    next &&
+                    next.uid === curr.uid &&
+                    curr.createdAt &&
+                    next.createdAt &&
+                    Math.abs(
+                      next.createdAt.toMillis() - curr.createdAt.toMillis(),
+                    ) <=
+                      5 * 60 * 1000
+                  ) {
+                    showTime = false
+                  }
+                  blocks.push({ showTime })
+                }
+                return messages.map((msg, i) => (
                   <div
-                    className={`max-w-xs lg:max-w-md ${
-                      msg.uid === user?.uid ? 'items-end' : 'items-start'
-                    } flex flex-col`}
+                    key={msg.id}
+                    className={`flex gap-2 ${
+                      msg.uid === user?.uid ? 'justify-end' : 'justify-start'
+                    } ${(() => {
+                      // Procura se existe alguma mensagem acima (do próprio usuário) com menu aberto
+                      let found = false
+                      for (let j = 0; j < i; j++) {
+                        if (
+                          messages[j].uid === user?.uid &&
+                          selectedMessageId === messages[j].id
+                        ) {
+                          found = true
+                          break
+                        }
+                      }
+                      return found ? 'translate-y-4 md:translate-y-2' : ''
+                    })()}`}
                   >
                     {msg.uid !== user?.uid &&
                       selectedChat?.tipo === 'group' && (
-                        <p
-                          onClick={() => openUserOptions(msg.uid, msg.nome)}
-                          className="text-xs font-semibold text-cyan-300 ml-2 cursor-pointer hover:text-cyan-200 transition-colors"
-                        >
-                          {msg.nome}
-                        </p>
-                      )}
-                    <div
-                      className={`relative group transition-transform ${
-                        activatingMessageId === msg.id
-                          ? msg.uid === user?.uid
-                            ? '-translate-x-8'
-                            : selectedChat?.tipo === 'private'
-                              ? 'translate-x-8'
-                              : ''
-                          : ''
-                      }`}
-                    >
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleMessageMenu(msg.id)
-                        }}
-                        className={`px-3 py-2 rounded-2xl cursor-pointer transition-all ${
-                          msg.uid === user?.uid
-                            ? 'bg-cyan-600 text-white rounded-br-none'
-                            : 'bg-slate-700 text-slate-100 rounded-bl-none'
-                        } ${
-                          selectedMessageId === msg.id
-                            ? 'ring-2 ring-cyan-400'
-                            : ''
-                        }`}
-                      >
-                        {msg.replyTo && (
-                          <div className="mb-2 pb-2 border-b border-opacity-30 border-white bg-cyan-900 rounded-xl p-2 overflow-hidden max-w-80 md:max-w-200">
-                            <p className="text-xs font-semibold opacity-75">
-                              Resposta para {msg.replyTo.nome}
-                            </p>
-                            <p className="text-xs opacity-75 truncate">
-                              {msg.replyTo.texto}
-                            </p>
-                          </div>
-                        )}
-                        <p className="text-sm whitespace-normal message-text">
-                          {msg.texto}
-                        </p>
-                      </div>
-
-                      {/* Menu de Ações - Ao lado direito para minhas mensagens */}
-                      {msg.uid === user?.uid && (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          className={`absolute left-full ml-2 top-0 flex-col gap-1 ${
-                            selectedMessageId === msg.id ? 'flex' : 'hidden'
-                          }`}
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setReplyingTo(msg)
-                              setSelectedMessageId(null)
-                              setActivatingMessageId(null)
-                            }}
-                            className="p-1.5 button-cyan"
-                            title="Responder"
+                        <div className="flex flex-col gap-1 items-center group">
+                          <div
+                            onClick={() => openUserOptions(msg.uid, msg.nome)}
+                            className="w-8 h-8 rounded-full bg-cyan-500/20 shrink-0 flex items-center justify-center cursor-pointer hover:bg-cyan-500/30 transition-colors"
+                            title="Ver opções"
                           >
-                            <ArrowUturnLeftIcon className="h-4 w-4" />
-                          </button>
-                          {canDeleteMessage(msg) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteMessage(msg.id)
-                                setSelectedMessageId(null)
-                                setActivatingMessageId(null)
-                              }}
-                              className="p-1.5 button-red-real"
-                              title="Deletar"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Menu de Ações - Ao lado esquerdo para mensagens de outros (private) */}
-                      {msg.uid !== user?.uid &&
-                        selectedChat?.tipo === 'private' && (
+                            {msg.photoUrl ? (
+                              <Image
+                                src={msg.photoUrl}
+                                alt={msg.nome}
+                                width={32}
+                                height={32}
+                                className="rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs text-cyan-300">
+                                {msg.nome[0]}
+                              </span>
+                            )}
+                          </div>
+                          {/* Botões abaixo da foto para mensagens de outros */}
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className={`absolute right-full mr-2 top-0 flex-col gap-1 ${
-                              selectedMessageId === msg.id
-                                ? 'flex'
-                                : 'hidden group-hover:flex'
+                            className={`flex-col gap-1 ${
+                              selectedMessageId === msg.id ? 'flex' : 'hidden'
                             }`}
                           >
                             <button
@@ -781,6 +782,7 @@ export default function Chat() {
                                 e.stopPropagation()
                                 setReplyingTo(msg)
                                 setSelectedMessageId(null)
+                                setActivatingMessageId(null)
                               }}
                               className="p-1.5 button-cyan"
                               title="Responder"
@@ -793,6 +795,100 @@ export default function Chat() {
                                   e.stopPropagation()
                                   handleDeleteMessage(msg.id)
                                   setSelectedMessageId(null)
+                                  setActivatingMessageId(null)
+                                }}
+                                className="p-1.5 button-red-real"
+                                title="Deletar"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    <div
+                      className={`max-w-xs lg:max-w-md ${
+                        msg.uid === user?.uid ? 'items-end' : 'items-start'
+                      } flex flex-col`}
+                    >
+                      {msg.uid !== user?.uid &&
+                        selectedChat?.tipo === 'group' && (
+                          <p
+                            onClick={() => openUserOptions(msg.uid, msg.nome)}
+                            className="text-xs font-semibold text-cyan-300 ml-2 cursor-pointer hover:text-cyan-200 transition-colors"
+                          >
+                            {msg.nome}
+                          </p>
+                        )}
+                      <div
+                        className={`relative group transition-transform ${
+                          activatingMessageId === msg.id
+                            ? msg.uid === user?.uid
+                              ? '-translate-x-8'
+                              : selectedChat?.tipo === 'private'
+                                ? 'translate-x-8'
+                                : ''
+                            : ''
+                        }`}
+                      >
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleMessageMenu(msg.id)
+                          }}
+                          className={`px-3 py-2 rounded-2xl cursor-pointer transition-all ${
+                            msg.uid === user?.uid
+                              ? 'bg-cyan-600 text-white rounded-br-none'
+                              : 'bg-slate-700 text-slate-100 rounded-bl-none'
+                          } ${
+                            selectedMessageId === msg.id
+                              ? 'ring-2 ring-cyan-400'
+                              : ''
+                          }`}
+                        >
+                          {msg.replyTo && (
+                            <div className="mb-2 pb-2 border-b border-opacity-30 border-white bg-cyan-900 rounded-xl p-2 overflow-hidden max-w-80 md:max-w-200">
+                              <p className="text-xs font-semibold opacity-75">
+                                Resposta para {msg.replyTo.nome}
+                              </p>
+                              <p className="text-xs opacity-75 truncate">
+                                {msg.replyTo.texto}
+                              </p>
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-normal message-text">
+                            {msg.texto}
+                          </p>
+                        </div>
+
+                        {/* Menu de Ações - Ao lado direito para minhas mensagens */}
+                        {msg.uid === user?.uid && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`absolute left-full ml-2 top-0 flex-col gap-1 ${
+                              selectedMessageId === msg.id ? 'flex' : 'hidden'
+                            }`}
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setReplyingTo(msg)
+                                setSelectedMessageId(null)
+                                setActivatingMessageId(null)
+                              }}
+                              className="p-1.5 button-cyan"
+                              title="Responder"
+                            >
+                              <ArrowUturnLeftIcon className="h-4 w-4" />
+                            </button>
+                            {canDeleteMessage(msg) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteMessage(msg.id)
+                                  setSelectedMessageId(null)
+                                  setActivatingMessageId(null)
                                 }}
                                 className="p-1.5 button-red-real"
                                 title="Deletar"
@@ -802,13 +898,54 @@ export default function Chat() {
                             )}
                           </div>
                         )}
-                      <p className="text-xs text-slate-400 mt-1">
-                        {formatTime(msg.createdAt)}
-                      </p>
+
+                        {/* Menu de Ações - Ao lado esquerdo para mensagens de outros (private) */}
+                        {msg.uid !== user?.uid &&
+                          selectedChat?.tipo === 'private' && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className={`absolute right-full mr-2 top-0 flex-col gap-1 ${
+                                selectedMessageId === msg.id
+                                  ? 'flex'
+                                  : 'hidden '
+                              }`}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setReplyingTo(msg)
+                                  setSelectedMessageId(null)
+                                }}
+                                className="p-1.5 button-cyan"
+                                title="Responder"
+                              >
+                                <ArrowUturnLeftIcon className="h-4 w-4" />
+                              </button>
+                              {canDeleteMessage(msg) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteMessage(msg.id)
+                                    setSelectedMessageId(null)
+                                  }}
+                                  className="p-1.5 button-red-real"
+                                  title="Deletar"
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        {blocks[i].showTime && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            {formatTime(msg.createdAt)}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))
+              })()
             )}
             <div ref={messagesEndRef} />
           </div>

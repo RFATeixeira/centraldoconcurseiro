@@ -20,7 +20,7 @@ export default function InfoPage() {
         . Este site está em conformidade com as leis de direitos autorais e
         privacidade do Brasil. Para dúvidas ou sugestões, entre em contato: (
         <a
-          href="https://instagram.com/centraldc"
+          href="https://instagram.com/centraldconcurseiro"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-cyan-400"
