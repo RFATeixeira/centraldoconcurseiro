@@ -74,7 +74,7 @@ export default function TopRankingsCard({
           rankings.slice(0, 3).map((ranking, index) => (
             <div
               key={index}
-              className="relative p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200"
+              className="relative p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200"
             >
               {/* Badge de posição */}
               <div className="absolute -top-2 -left-2">

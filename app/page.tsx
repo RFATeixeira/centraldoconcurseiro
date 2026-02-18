@@ -7,6 +7,7 @@ import { useAuth } from './context/AuthContext'
 import UserConcursoCard from '../components/UserConcursoCard'
 import TopRankingsCard from '../components/TopRankingsCard'
 import ProgressoEstudosCard from '../components/ProgressoEstudosCard'
+import CardCalendario from '../components/CardCalendario'
 
 interface Ranking {
   concurso: string
@@ -80,6 +81,8 @@ export default function Home() {
         <UserConcursoCard stats={stats} />
         <TopRankingsCard rankings={rankings} />
         <ProgressoEstudosCard />
+        {/* Calendário de Concursos */}
+        <CardCalendario />
       </div>
 
       {/* Conteúdo principal */}

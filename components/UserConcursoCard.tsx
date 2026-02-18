@@ -2,7 +2,10 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
-import { PencilIcon } from '@heroicons/react/24/outline'
+import {
+  ClipboardDocumentListIcon,
+  PencilIcon,
+} from '@heroicons/react/24/outline'
 import { useAuth } from '../app/context/AuthContext'
 import Link from 'next/link'
 
@@ -68,26 +71,35 @@ export default function UserConcursoCard({
           Meus Concursos
         </p>
 
-        <div className="flex items-center justify-between p-3 bg-cyan-400/20 rounded-full border border-cyan-400/30">
+        <div className="item-display-1">
           <span className="text-sm text-gray-200">Em Andamento</span>
           <span className="text-lg font-bold text-cyan-300">
             {stats.emAndamento}
           </span>
         </div>
 
-        <div className="flex items-center justify-between p-3 bg-cyan-600/20 rounded-full border border-cyan-400/30">
+        <div className="item-display-2">
           <span className="text-sm text-gray-200">Inscritos</span>
           <span className="text-lg font-bold text-cyan-300">
             {stats.inscritos}
           </span>
         </div>
 
-        <div className="flex items-center justify-between p-3 bg-cyan-800/20 rounded-full border border-cyan-400/30">
+        <div className="item-display-3">
           <span className="text-sm text-gray-200">Finalizados</span>
           <span className="text-lg font-bold text-cyan-300">
             {stats.finalizados}
           </span>
         </div>
+      </div>
+      <div className="space-y-2 border-t border-white/10 mt-4 pt-4">
+        <Link
+          href="/meus-simulados"
+          className="button-cyan gap-2 flex flex-row justify-center items-center w-full"
+        >
+          <ClipboardDocumentListIcon className="h-7 w-7" />
+          Meus Simulados
+        </Link>
       </div>
     </div>
   )

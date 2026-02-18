@@ -147,6 +147,22 @@ body {
     scrollbar-color: rgba(6, 182, 212, 0.3) rgba(15, 23, 42, 0.3);
     padding-top: 2rem;
   }
+
+  .item-display-1 {
+    @apply flex items-center justify-between p-3 bg-cyan-400/20 rounded-full border border-cyan-400/30
+  }
+
+  .item-display-2 {
+    @apply flex items-center justify-between p-3 bg-cyan-600/20 rounded-full border border-cyan-400/30
+  }
+
+  .item-display-3 {
+    @apply flex items-center justify-between p-3 bg-cyan-800/20 rounded-full border border-cyan-400/30
+  }
+
+  .item-display-mini {
+    @apply text-xs  px-2 py-1 rounded-3xl
+  }
 }
 
 /* Word breaking for long messages */
