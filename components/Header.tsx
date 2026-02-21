@@ -73,38 +73,10 @@ export default function Header() {
             Inicio
           </Link>
           <div className="relative group">
-            <Link
-              href="/concursos-disponiveis"
-              className="pl-3 pr-5 button-hover-1"
-            >
+            <Link href="/concursos" className="pl-3 pr-5 button-hover-1">
               Concursos
             </Link>
             <div className="absolute top-full left-0 right-0 h-6" />
-
-            <div
-              className="absolute top-full left-1/2 mt-7 
-                 -translate-x-1/2 bg-black/80
-                 min-w-fit rounded-3xl glassmorphism-pill
-                 flex flex-col 
-                 opacity-0 translate-y-2 pointer-events-none
-                 transition-all duration-200 ease-out
-                 group-hover:opacity-100
-                 group-hover:translate-y-0
-                 group-hover:pointer-events-auto"
-            >
-              <Link
-                href="/concursos-disponiveis"
-                className="px-4 py-2 button-hover-1  whitespace-nowrap"
-              >
-                Disponíveis
-              </Link>
-              <Link
-                href="/editais-abertos"
-                className="px-4 py-2 button-hover-1  whitespace-nowrap"
-              >
-                Edital Aberto
-              </Link>
-            </div>
           </div>
           <Link href="/chat" className="pl-3 button-hover-1 pr-5">
             Chat

@@ -385,7 +385,7 @@ export default function Simulados() {
           <h1 className="text-4xl font-bold text-white">Simulado</h1>
         </div>
         {/* Filtros fixos no topo */}
-        <div className="glassmorphism-pill w-full p-4 rounded-3xl flex flex-col md:flex-row gap-3 flex-wrap sticky -mt-8 md:mt-0">
+        <div className="glassmorphism-pill w-full p-4 rounded-4xl flex flex-col md:flex-row gap-3 flex-wrap sticky -mt-8 md:mt-0">
           <div className="w-full md:w-56">
             <SelectCustom
               value={selectedBanca}

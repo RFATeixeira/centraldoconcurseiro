@@ -63,11 +63,11 @@ body {
 
 @layer components {
   .glassmorphism {
-    @apply bg-white/10 backdrop-blur-md rounded-lg border border-white/20 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
+    @apply bg-white/10 backdrop-blur-md rounded-lg ring-2 ring-white/20 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
   }
 
   .glassmorphism-dark {
-    @apply bg-black/40 backdrop-blur-2xl rounded-lg border border-white/10 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
+    @apply bg-black/40 backdrop-blur-2xl rounded-lg ring-2 ring-white/10 shadow-lg shadow-black/30 flex items-center justify-center px-4 py-2 gap-2 h-fit;
   }
 
   .glassmorphism-pill {
@@ -80,7 +80,7 @@ body {
 
   .input-style-1 {
     @apply
-      bg-black/20 rounded-full py-3 px-4 outline-none ring-1 ring-white/10 transition-all duration-200 ease-out backdrop-blur-xs w-full max-h-12 resize-none;
+      bg-black/20 rounded-full py-3 px-4 outline-none ring-2 ring-white/10 transition-all duration-200 ease-out backdrop-blur-xs w-full max-h-12 resize-none;
   }
 
   .input-style-1:focus {
@@ -88,27 +88,27 @@ body {
   }
 
   .button-cyan {
-    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-cyan-400/30 hover:border-cyan-400/60 hover:shadow-lg hover:shadow-cyan-500/20;
+    @apply w-full flex justify-center items-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed ring-2 ring-cyan-400/30 hover:ring-cyan-400/60 hover:shadow-lg hover:shadow-cyan-500/20;
     background-image: linear-gradient(90deg, rgba(6, 182, 212, 0.3) 0%, rgba(59, 130, 246, 0.3) 100%);
   }
 
   .button-red {
-    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-cyan-400/30 hover:border-cyan-400/60 hover:shadow-lg hover:shadow-cyan-500/20;
+    @apply w-full flex justify-center items-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed ring-2 ring-red-400/30 hover:ring-red-400/60 hover:shadow-lg hover:shadow-red-500/20;
     background-image: linear-gradient(90deg, rgba(0, 123, 139, 0.3) 0%, rgba(0, 53, 53, 0.3) 100%);
   }
 
   .button-red-real {
-    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-red-400/30 hover:border-red-400/60 hover:shadow-lg hover:shadow-red-500/20;
+    @apply w-full flex justify-center items-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed ring-2 ring-red-400/30 hover:ring-red-400/60 hover:shadow-lg hover:shadow-red-500/20;
     background-image: linear-gradient(90deg, rgba(255, 0, 0, 0.3) 0%, rgba(255, 0, 0, 0.3) 100%);
   }
 
   .button-green {
-    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-green-400/30 hover:border-green-400/60 hover:shadow-lg hover:shadow-green-500/20;
+    @apply w-full flex justify-center items-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed ring-2 ring-green-400/30 hover:ring-green-400/60 hover:shadow-lg hover:shadow-green-500/20;
     background-image: linear-gradient(90deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.3) 100%);
   }
 
   .button-gray {
-    @apply w-full flex justify-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed border border-gray-400/30 hover:border-gray-400/60 hover:shadow-lg hover:shadow-gray-500/20;
+    @apply w-full flex justify-center items-center py-3 px-4 rounded-full font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed ring-2 ring-white/10 hover:ring-white/20 hover:shadow-lg hover:shadow-gray-500/20;
     background-image: linear-gradient(90deg, rgba(107, 114, 128, 0.3) 0%, rgba(75, 85, 99, 0.3) 100%);
   }
 

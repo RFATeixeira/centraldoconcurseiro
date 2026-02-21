@@ -22,7 +22,7 @@ export default function SelectCustom({
       <Listbox value={value} onChange={onChange}>
         <div className="relative">
           <Listbox.Button
-            className={`relative w-full cursor-pointer rounded-3xl bg-black/20 py-2 pl-4 pr-10 text-left text-white0 font-semibold border-2 border-white/20 shadow-lg focus:outline-none focus:ring-0 transition-all ${className}`}
+            className={`relative w-full cursor-pointer rounded-3xl bg-black/20 py-3 pl-4 pr-10 text-left text-white0 font-semibold border-2 border-white/20 shadow-lg focus:outline-none focus:ring-0 transition-all ${className}`}
           >
             <span className="block truncate">
               {options.find((opt) => opt.value === value)?.label ||
